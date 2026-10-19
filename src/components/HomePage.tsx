@@ -82,6 +82,12 @@ const Navigation = () => {
             </motion.div>
           </a>
         ))}
+        <a
+          href="/login"
+          className="text-muted-foreground hover:text-primary font-medium transition-colors"
+        >
+          Masuk
+        </a>
         <a href="/join">
           <button
             data-testid="button-join-nav"
@@ -137,7 +143,7 @@ const Navigation = () => {
               </motion.a>
             ))}
             <motion.div
-              className="border-border/40 border-t pt-6"
+              className="border-border/40 border-t pt-6 flex flex-col gap-3"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -146,6 +152,13 @@ const Navigation = () => {
                 duration: 0.25,
               }}
             >
+              <a
+                href="/login"
+                className="block w-full text-center py-3 rounded-full border border-border font-semibold text-foreground hover:bg-muted transition-colors"
+                onClick={() => setIsOpen(false)}
+              >
+                Masuk ke Akun
+              </a>
               <a
                 href="/join"
                 className="block w-full"

@@ -54,6 +54,20 @@ const canonicalUrl = `${siteUrl.replace(/\/$/, '')}${canonicalPath}`;
         },
       })}
     />
+
+    <script is:inline>
+      (function() {
+        try {
+          const stored = localStorage.getItem('theme');
+          const isDark = stored ? stored === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+          if (isDark) {
+            document.documentElement.classList.add('dark');
+          } else {
+            document.documentElement.classList.remove('dark');
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <slot />
@@ -64,6 +78,7 @@ const canonicalUrl = `${siteUrl.replace(/\/$/, '')}${canonicalPath}`;
   @import 'tailwindcss';
 
   @custom-variant hover (&:hover);
+  @custom-variant dark (&:where(.dark, .dark *));
 
   @theme inline {
     --color-background: hsl(var(--background));
@@ -126,6 +141,19 @@ const canonicalUrl = `${siteUrl.replace(/\/$/, '')}${canonicalPath}`;
     --ring: 6 78% 75%;
 
     --radius: 1rem;
+  }
+
+  .dark {
+    --background: 222 47% 11%;
+    --foreground: 210 40% 98%;
+    --card: 217 33% 15%;
+    --card-foreground: 210 40% 98%;
+    --popover: 217 33% 15%;
+    --popover-foreground: 210 40% 98%;
+    --muted: 217 33% 20%;
+    --muted-foreground: 215 20% 65%;
+    --border: 217 33% 24%;
+    --input: 217 33% 24%;
   }
 
   @layer base {
