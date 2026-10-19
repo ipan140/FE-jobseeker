@@ -1,12 +1,12 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import JobsExplorer from '../components/JobsExplorer';
+import JobseekerPortal from '../components/jobseeker/JobseekerPortal';
 ---
 
 <Layout
-  title="Lowongan Pekerjaan - Jobseekers Portal"
-  description="Temukan dan lamar ribuan lowongan pekerjaan teknologi & enterprise di Indonesia."
+  title="Eksplorasi Peluang Karier - CareerFlow Portal"
+  description="Temukan dan lamar ribuan peluang karier terverifikasi dengan transparansi gaji."
   canonicalPath="/jobs"
 >
-  <JobsExplorer client:load />
+  <JobseekerPortal client:load initialTab="explore" />
 </Layout>

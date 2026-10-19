@@ -11,14 +11,21 @@ import {
   LogOut,
   Settings,
   Shield,
-  Clock
+  Download,
+  Filter,
+  ArrowRightLeft,
+  Building2
 } from 'lucide-react';
 import { authStorage } from '../../lib/auth';
 import { getMyNotifications, getUnreadNotificationCount, markAllNotificationsRead } from '../../lib/api';
 
+export type ConsoleMode = 'jobseeker' | 'admin' | 'merchant';
+
 export interface NavbarProps {
   isSidebarCollapsed: boolean;
   onToggleSidebar: () => void;
+  consoleMode?: ConsoleMode;
+  onToggleConsoleMode?: (mode: ConsoleMode) => void;
   searchQuery?: string;
   onSearchChange?: (val: string) => void;
 }
@@ -26,67 +33,53 @@ export interface NavbarProps {
 export default function Navbar({
   isSidebarCollapsed,
   onToggleSidebar,
+  consoleMode = 'admin',
+  onToggleConsoleMode,
   searchQuery = '',
   onSearchChange,
 }: NavbarProps) {
   const [isDark, setIsDark] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
-  const [userName, setUserName] = useState('Bagus Pratama');
-  const [userRole, setUserRole] = useState('Super Admin');
   const [unreadCount, setUnreadCount] = useState<number>(3);
   const [notifications, setNotifications] = useState<any[]>([
     {
       id: 1,
-      title: 'Post Lowongan Baru',
-      desc: 'PT GoTo Gojek Tokopedia mengajukan Senior DevOps Engineer.',
-      time: '10:42 WIB Hari ini',
+      title: 'Validasi NIB & NPWP Baru',
+      desc: 'PT Solusi Teknologi Nusantara mengajukan verifikasi berkas legal.',
+      time: '09:42 WIB Hari ini',
       unread: true,
     },
     {
       id: 2,
-      title: 'Registrasi Akun Baru',
-      desc: 'Budi Santoso telah memverifikasi email & OTP mandiri.',
-      time: '09:15 WIB Hari ini',
+      title: 'Permohonan Lowongan Baru',
+      desc: 'FinTech Asia Group mengajukan Senior Product Designer.',
+      time: '09:30 WIB Hari ini',
       unread: true,
     },
     {
       id: 3,
-      title: 'Upload Berkas Legalitas',
-      desc: 'PT Bank Mandiri (Persero) Tbk memperbarui izin massal.',
-      time: '08:30 WIB Hari ini',
+      title: 'Registrasi Akun Merchant',
+      desc: 'CV Karya Mitra Abadi menyelesaikan upload dokumen KTP.',
+      time: '08:15 WIB Hari ini',
       unread: true,
     },
   ]);
 
+  const isMerchant = consoleMode === 'merchant';
+  const userName = isMerchant ? 'PT Solusi Teknologi Nusantara' : 'Admin Utama';
+  const userRole = isMerchant ? 'Merchant Enterprise' : 'Super Admin Compliance';
+
+  // Check initial dark mode from DOM
   useEffect(() => {
-    const isCurrentlyDark = document.documentElement.classList.contains('dark');
-    setIsDark(isCurrentlyDark);
-
-    const user = authStorage.getUser();
-    if (user && user.email) {
-      const emailPrefix = user.email.split('@')[0].replace('.', ' ');
-      const formatted = emailPrefix.replace(/\b\w/g, (l) => l.toUpperCase());
-      setUserName(formatted || 'Bagus Pratama');
-      setUserRole(user.role === 'admin' ? 'Super Admin' : user.role === 'company' ? 'HR Recruiter' : 'Job Seeker');
-
-      getMyNotifications().then((beNotifs) => {
-        if (beNotifs && beNotifs.length > 0) {
-          setNotifications(
-            beNotifs.map((n) => ({
-              id: n.id,
-              title: n.title,
-              desc: n.message,
-              time: new Date(n.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
-              unread: !n.is_read,
-            }))
-          );
-        }
-      }).catch(() => {});
-
-      getUnreadNotificationCount().then((count) => {
-        if (count > 0) setUnreadCount(count);
-      }).catch(() => {});
+    if (typeof window !== 'undefined') {
+      const isDarkMode =
+        document.documentElement.classList.contains('dark') ||
+        localStorage.getItem('theme') === 'dark';
+      setIsDark(isDarkMode);
+      if (isDarkMode) {
+        document.documentElement.classList.add('dark');
+      }
     }
   }, []);
 
@@ -130,7 +123,11 @@ export default function Navbar({
           <Search className="w-4 h-4 absolute left-3.5 top-3 text-slate-400 pointer-events-none" />
           <input
             type="text"
-            placeholder="Cari metrik, user, atau lowongan..."
+            placeholder={
+              isMerchant
+                ? 'Cari posisi, ID tiket, pelamar...'
+                : 'Cari PT, NIB, NPWP, atau nama PIC...'
+            }
             value={searchQuery}
             onChange={(e) => onSearchChange && onSearchChange(e.target.value)}
             className="w-full pl-10 pr-4 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700/80 bg-slate-50/70 dark:bg-[#151f32] focus:bg-white dark:focus:bg-[#111827] text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all placeholder:text-slate-400"
@@ -139,16 +136,55 @@ export default function Navbar({
       </div>
 
       {/* Right Navigation & User Profile */}
-      <div className="flex items-center gap-3 sm:gap-5 text-xs">
+      <div className="flex items-center gap-2.5 sm:gap-4 text-xs">
+        {/* Quick Console Switcher Pill */}
+        {onToggleConsoleMode && (
+          <button
+            type="button"
+            onClick={() => {
+              if (consoleMode === 'admin') onToggleConsoleMode('merchant');
+              else if (consoleMode === 'merchant') onToggleConsoleMode('jobseeker');
+              else onToggleConsoleMode('admin');
+            }}
+            className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 font-bold hover:bg-blue-100 transition-all cursor-pointer"
+            title="Klik untuk beralih mode (Pencari Kerja / Admin / Merchant)"
+          >
+            <ArrowRightLeft className="w-3.5 h-3.5" />
+            <span>
+              Mode: {consoleMode === 'admin' ? 'Admin' : consoleMode === 'merchant' ? 'Merchant' : 'Pencari Kerja'}
+            </span>
+          </button>
+        )}
+
+        {/* Super Admin Action Buttons: Filter Cepat & Unduh Laporan */}
+        {!isMerchant && (
+          <div className="hidden lg:flex items-center gap-2">
+            <button
+              type="button"
+              className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold flex items-center gap-1.5 cursor-pointer"
+            >
+              <Filter className="w-3.5 h-3.5" />
+              <span>Filter Cepat</span>
+            </button>
+            <button
+              type="button"
+              className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold flex items-center gap-1.5 shadow-sm cursor-pointer"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Unduh Laporan</span>
+            </button>
+          </div>
+        )}
+
         <a
           href="#docs"
-          className="hidden md:block font-semibold text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+          className="hidden xl:block font-semibold text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
         >
           Dokumentasi API
         </a>
         <a
           href="#help"
-          className="hidden md:block font-semibold text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+          className="hidden xl:block font-semibold text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
         >
           Pusat Bantuan
         </a>
@@ -218,16 +254,6 @@ export default function Navbar({
           )}
         </div>
 
-        {/* Help Circle */}
-        <button
-          type="button"
-          onClick={() => alert('Pusat Bantuan CareerFlow v2.8.4 Enterprise')}
-          className="p-2 rounded-xl text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-          title="Bantuan"
-        >
-          <HelpCircle className="w-4.5 h-4.5" />
-        </button>
-
         {/* User Avatar & Name Pill */}
         <div className="relative">
           <button
@@ -239,10 +265,10 @@ export default function Navbar({
             className="flex items-center gap-2.5 p-1 sm:pl-2 sm:pr-3 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
           >
             <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold text-xs flex items-center justify-center ring-2 ring-blue-200 dark:ring-blue-900 shadow-xs">
-              {userName.split(' ').map((n) => n[0]).slice(0, 2).join('')}
+              {isMerchant ? 'PT' : 'AU'}
             </div>
             <div className="hidden sm:block text-left">
-              <span className="text-xs font-bold text-slate-900 dark:text-white leading-tight block truncate max-w-32">
+              <span className="text-xs font-bold text-slate-900 dark:text-white leading-tight block truncate max-w-36">
                 {userName}
               </span>
               <span className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold block leading-none">
@@ -253,7 +279,7 @@ export default function Navbar({
           </button>
 
           {showProfileMenu && (
-            <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-[#1a2232] rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700/80 p-2 z-50 animate-in fade-in duration-200 text-slate-800 dark:text-slate-200">
+            <div className="absolute right-0 mt-2 w-60 bg-white dark:bg-[#1a2232] rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700/80 p-2 z-50 animate-in fade-in duration-200 text-slate-800 dark:text-slate-200">
               <div className="px-3 py-2 border-b border-slate-100 dark:border-slate-800">
                 <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
                   {userName}
