@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import Sidebar from './Sidebar';
 import Navbar from './Navbar';
-import Footer from './Footer';
 import DashboardMatrix from './DashboardMatrix';
 
 export default function DashboardLayout() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [activePath, setActivePath] = useState('/dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'jobs'>('dashboard');
+  const [showCreateJobModal, setShowCreateJobModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Handle responsive collapse on smaller screens
   useEffect(() => {
@@ -32,31 +33,37 @@ export default function DashboardLayout() {
       {/* Collapsible Left Sidebar */}
       <Sidebar
         isCollapsed={isSidebarCollapsed}
-        activePath={activePath}
-        onNavigate={(path) => setActivePath(path)}
+        activeTab={activeTab}
+        onSelectTab={(tab) => setActiveTab(tab)}
+        onOpenCreateJob={() => setShowCreateJobModal(true)}
       />
 
       {/* Main Column Wrapper */}
       <div
         className={`flex-1 flex flex-col transition-all duration-300 ease-in-out ${
-          isSidebarCollapsed ? 'pl-[72px]' : 'pl-64'
+          isSidebarCollapsed ? 'pl-[76px]' : 'pl-64'
         }`}
       >
         {/* Top Navbar */}
         <Navbar
           isSidebarCollapsed={isSidebarCollapsed}
           onToggleSidebar={toggleSidebar}
-          title="Dashboard Monitoring Karir & Rekrutmen"
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
         />
 
         {/* Dashboard Main Content */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto">
-          <DashboardMatrix />
+          <DashboardMatrix
+            activeTab={activeTab}
+            onSelectTab={setActiveTab}
+            showCreateJobModal={showCreateJobModal}
+            onCloseCreateJobModal={() => setShowCreateJobModal(false)}
+            onOpenCreateJobModal={() => setShowCreateJobModal(true)}
+          />
         </main>
-
-        {/* Bottom Footer */}
-        <Footer />
       </div>
     </div>
   );
 }
+
