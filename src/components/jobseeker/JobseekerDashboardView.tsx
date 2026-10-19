@@ -21,6 +21,8 @@ export interface JobseekerDashboardProps {
   onOpenApplyModal: (jobTitle: string, company: string) => void;
   onNavigateToExplore: () => void;
   onNavigateToZen: () => void;
+  onNavigateToApplications?: () => void;
+  onNavigateToProfile?: () => void;
 }
 
 export default function JobseekerDashboardView({
@@ -28,6 +30,8 @@ export default function JobseekerDashboardView({
   onOpenApplyModal,
   onNavigateToExplore,
   onNavigateToZen,
+  onNavigateToApplications,
+  onNavigateToProfile,
 }: JobseekerDashboardProps) {
   const [searchKeyword, setSearchKeyword] = useState('Frontend Developer');
   const [selectedLocation, setSelectedLocation] = useState('Jakarta (Jabodetabek)');
@@ -142,24 +146,32 @@ export default function JobseekerDashboardView({
       {/* 3 Applicant Metrics Cards (Matching Image 1) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         {/* Card 1: Lamaran Terkirim */}
-        <div className="p-5 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex items-center justify-between">
+        <div
+          onClick={onNavigateToApplications}
+          className="p-5 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex items-center justify-between cursor-pointer hover:border-blue-500 dark:hover:border-blue-500 hover:shadow-md transition-all group"
+          title="Lihat Lamaran Saya"
+        >
           <div>
-            <span className="text-xs text-slate-500 font-semibold block">Lamaran Terkirim</span>
+            <span className="text-xs text-slate-500 font-semibold block group-hover:text-blue-600 transition-colors">Lamaran Terkirim</span>
             <div className="flex items-baseline gap-2 mt-1">
               <span className="text-3xl font-black text-slate-900 dark:text-white">4</span>
               <span className="text-[11px] text-emerald-600 font-bold">+1 minggu ini</span>
             </div>
           </div>
-          <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 flex items-center justify-center shadow-xs">
+          <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 flex items-center justify-center shadow-xs group-hover:scale-105 transition-transform">
             <Send className="w-5 h-5" />
           </div>
         </div>
 
         {/* Card 2: Panggilan Wawancara */}
-        <div className="p-5 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex items-center justify-between">
+        <div
+          onClick={onNavigateToApplications}
+          className="p-5 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex items-center justify-between cursor-pointer hover:border-blue-500 dark:hover:border-blue-500 hover:shadow-md transition-all group"
+          title="Lihat Jadwal Wawancara"
+        >
           <div>
             <div className="flex items-center gap-1.5">
-              <span className="text-xs text-slate-500 font-semibold block">Panggilan Wawancara</span>
+              <span className="text-xs text-slate-500 font-semibold block group-hover:text-blue-600 transition-colors">Panggilan Wawancara</span>
               <span className="w-2 h-2 rounded-full bg-blue-600" />
             </div>
             <div className="flex items-baseline gap-2 mt-1">
@@ -167,21 +179,25 @@ export default function JobseekerDashboardView({
               <span className="text-[11px] text-blue-600 font-bold">Jadwal: Besok, 14:00</span>
             </div>
           </div>
-          <div className="w-12 h-12 rounded-2xl bg-sky-50 dark:bg-sky-950/60 text-sky-600 flex items-center justify-center shadow-xs">
+          <div className="w-12 h-12 rounded-2xl bg-sky-50 dark:bg-sky-950/60 text-sky-600 flex items-center justify-center shadow-xs group-hover:scale-105 transition-transform">
             <Calendar className="w-5 h-5" />
           </div>
         </div>
 
         {/* Card 3: Tawaran Kerja */}
-        <div className="p-5 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex items-center justify-between">
+        <div
+          onClick={onNavigateToApplications}
+          className="p-5 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex items-center justify-between cursor-pointer hover:border-blue-500 dark:hover:border-blue-500 hover:shadow-md transition-all group"
+          title="Lihat Tawaran Kerja"
+        >
           <div>
-            <span className="text-xs text-slate-500 font-semibold block">Tawaran Kerja</span>
+            <span className="text-xs text-slate-500 font-semibold block group-hover:text-blue-600 transition-colors">Tawaran Kerja</span>
             <div className="flex items-baseline gap-2 mt-1">
               <span className="text-3xl font-black text-slate-900 dark:text-white">0</span>
               <span className="text-[11px] text-slate-400">Menunggu keputusan</span>
             </div>
           </div>
-          <div className="w-12 h-12 rounded-2xl bg-slate-50 dark:bg-slate-800 text-slate-500 flex items-center justify-center shadow-xs">
+          <div className="w-12 h-12 rounded-2xl bg-slate-50 dark:bg-slate-800 text-slate-500 flex items-center justify-center shadow-xs group-hover:scale-105 transition-transform">
             <Award className="w-5 h-5" />
           </div>
         </div>

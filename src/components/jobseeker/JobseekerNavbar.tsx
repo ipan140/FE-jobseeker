@@ -11,8 +11,8 @@ import {
 import { authStorage } from '../../lib/auth';
 
 export interface JobseekerNavbarProps {
-  activeTab: 'dashboard' | 'explore' | 'job-detail' | 'zen';
-  onSelectTab: (tab: 'dashboard' | 'explore' | 'job-detail' | 'zen') => void;
+  activeTab: 'dashboard' | 'explore' | 'job-detail' | 'applications' | 'profile' | 'profile-edit' | 'zen';
+  onSelectTab: (tab: 'dashboard' | 'explore' | 'job-detail' | 'applications' | 'profile' | 'profile-edit' | 'zen') => void;
   onSwitchToConsole?: (role: 'admin' | 'merchant') => void;
 }
 
@@ -50,9 +50,9 @@ export default function JobseekerNavbar({
             <button
               type="button"
               onClick={() => onSelectTab('dashboard')}
-              className={`px-4 py-2 rounded-xl transition-all cursor-pointer relative ${
+              className={`px-3.5 py-2 rounded-xl transition-all cursor-pointer relative ${
                 activeTab === 'dashboard'
-                  ? 'text-blue-600 dark:text-blue-400 font-extrabold after:absolute after:bottom-0 after:left-4 after:right-4 after:h-0.5 after:bg-blue-600'
+                  ? 'text-blue-600 dark:text-blue-400 font-extrabold after:absolute after:bottom-0 after:left-3.5 after:right-3.5 after:h-0.5 after:bg-blue-600'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
@@ -62,9 +62,9 @@ export default function JobseekerNavbar({
             <button
               type="button"
               onClick={() => onSelectTab('explore')}
-              className={`px-4 py-2 rounded-xl transition-all cursor-pointer relative ${
+              className={`px-3.5 py-2 rounded-xl transition-all cursor-pointer relative ${
                 activeTab === 'explore' || activeTab === 'job-detail'
-                  ? 'text-blue-600 dark:text-blue-400 font-extrabold after:absolute after:bottom-0 after:left-4 after:right-4 after:h-0.5 after:bg-blue-600'
+                  ? 'text-blue-600 dark:text-blue-400 font-extrabold after:absolute after:bottom-0 after:left-3.5 after:right-3.5 after:h-0.5 after:bg-blue-600'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
@@ -73,10 +73,26 @@ export default function JobseekerNavbar({
 
             <button
               type="button"
-              onClick={() => onSelectTab('explore')}
-              className="px-4 py-2 rounded-xl text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all cursor-pointer"
+              onClick={() => onSelectTab('applications')}
+              className={`px-3.5 py-2 rounded-xl transition-all cursor-pointer relative ${
+                activeTab === 'applications'
+                  ? 'text-blue-600 dark:text-blue-400 font-extrabold after:absolute after:bottom-0 after:left-3.5 after:right-3.5 after:h-0.5 after:bg-blue-600'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
             >
               Lamaran Saya
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onSelectTab('profile')}
+              className={`px-3.5 py-2 rounded-xl transition-all cursor-pointer relative ${
+                activeTab === 'profile' || activeTab === 'profile-edit'
+                  ? 'text-blue-600 dark:text-blue-400 font-extrabold after:absolute after:bottom-0 after:left-3.5 after:right-3.5 after:h-0.5 after:bg-blue-600'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              Profil Saya
             </button>
 
             {/* Combined Zen Corner Tab (Preserving Image 5) */}
@@ -128,7 +144,11 @@ export default function JobseekerNavbar({
           </button>
 
           {/* User Profile Pill */}
-          <div className="flex items-center gap-3 pl-2 sm:border-l border-slate-200 dark:border-slate-800">
+          <div
+            onClick={() => onSelectTab('profile')}
+            className="flex items-center gap-3 pl-2 sm:border-l border-slate-200 dark:border-slate-800 cursor-pointer hover:opacity-80 transition-opacity"
+            title="Lihat Profil Saya"
+          >
             <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold text-xs flex items-center justify-center ring-2 ring-blue-100 dark:ring-blue-900">
               BS
             </div>
