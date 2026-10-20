@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import JobseekerNavbar from './JobseekerNavbar';
 import JobseekerDashboardView from './JobseekerDashboardView';
 import JobseekerExploreView from './JobseekerExploreView';
@@ -8,6 +8,8 @@ import JobseekerProfileView from './JobseekerProfileView';
 import JobseekerProfileEditView from './JobseekerProfileEditView';
 import JobseekerZenView from './JobseekerZenView';
 import JobApplicationModal from './JobApplicationModal';
+import AuthRequiredModal from './AuthRequiredModal';
+import { authStorage } from '../../lib/auth';
 
 export type JobseekerTab =
   | 'dashboard'
@@ -28,27 +30,72 @@ export default function JobseekerPortal({
   initialTab = 'dashboard',
 }: JobseekerPortalProps) {
   const [activeTab, setActiveTab] = useState<JobseekerTab>(initialTab);
+  const [selectedJobId, setSelectedJobId] = useState<string>('c4b338a0-4205-4b08-894f-6d12981a96dd');
   const [selectedJobTitle, setSelectedJobTitle] = useState('Senior Frontend Engineer (React/Next.js)');
   const [selectedCompany, setSelectedCompany] = useState('PT Solusi Teknologi Nusantara');
   const [isApplyModalOpen, setIsApplyModalOpen] = useState(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [user, setUser] = useState<{ user_id: string; email: string; role: string } | null>(null);
 
-  const handleSelectJob = (title: string, company: string) => {
+  // Load auth state on mount
+  useEffect(() => {
+    const isAuth = authStorage.isAuthenticated();
+    setIsAuthenticated(isAuth);
+    if (isAuth) {
+      setUser(authStorage.getUser());
+    }
+  }, []);
+
+  const handleSelectJob = (title: string, company: string, jobId?: string) => {
     setSelectedJobTitle(title);
     setSelectedCompany(company);
+    if (jobId) setSelectedJobId(jobId);
     setActiveTab('job-detail');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleOpenApplyModal = (title?: string, company?: string) => {
+  const handleOpenApplyModal = (title?: string, company?: string, jobId?: string) => {
     if (title) setSelectedJobTitle(title);
     if (company) setSelectedCompany(company);
+    if (jobId) setSelectedJobId(jobId);
+
+    // CRITICAL FLOW: Check if user is logged in
+    const isAuth = isAuthenticated || authStorage.isAuthenticated();
+    if (!isAuth) {
+      setIsAuthModalOpen(true);
+    } else {
+      setIsApplyModalOpen(true);
+    }
+  };
+
+  const handleLoginSuccess = () => {
+    setIsAuthenticated(true);
+    setUser(authStorage.getUser() || { user_id: 'user-budi-1', email: 'budi.santoso@gmail.com', role: 'jobseeker' });
+    setIsAuthModalOpen(false);
+    // Seamless experience: open application modal for the selected job right away
     setIsApplyModalOpen(true);
   };
 
+  const handleLogout = () => {
+    authStorage.clearSession();
+    setIsAuthenticated(false);
+    setUser(null);
+    setActiveTab('dashboard');
+  };
+
   const handleTabChange = (tab: JobseekerTab) => {
+    // If guest clicks protected tabs (applications/profile), prompt login
+    if ((tab === 'applications' || tab === 'profile' || tab === 'profile-edit') && !isAuthenticated) {
+      setIsAuthModalOpen(true);
+      return;
+    }
     setActiveTab(tab);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
+  const userName = user?.email === 'budi.santoso@gmail.com' || !user?.email ? 'Budi Santoso' : user.email.split('@')[0];
+  const userRole = user?.role === 'admin' ? 'Super Admin' : user?.role === 'company' ? 'HR Perusahaan' : 'Frontend Engineer';
 
   return (
     <div className="min-h-screen bg-[#f8fafc] dark:bg-[#0b1120] text-slate-800 dark:text-slate-100 flex flex-col font-sans transition-colors duration-200">
@@ -57,6 +104,11 @@ export default function JobseekerPortal({
         activeTab={activeTab}
         onSelectTab={handleTabChange}
         onSwitchToConsole={onSwitchToConsole}
+        isAuthenticated={isAuthenticated}
+        userName={userName}
+        userRole={userRole}
+        onOpenAuthModal={() => setIsAuthModalOpen(true)}
+        onLogout={handleLogout}
       />
 
       {/* Main Container */}
@@ -70,19 +122,26 @@ export default function JobseekerPortal({
             onNavigateToZen={() => handleTabChange('zen')}
             onNavigateToApplications={() => handleTabChange('applications')}
             onNavigateToProfile={() => handleTabChange('profile')}
+            isAuthenticated={isAuthenticated}
+            userName={userName}
+            onOpenAuthModal={() => setIsAuthModalOpen(true)}
           />
         )}
 
         {/* View 2: Cari Lowongan / Eksplorasi Peluang Karier (Image 2 of Set 3) */}
         {activeTab === 'explore' && (
-          <JobseekerExploreView onSelectJob={handleSelectJob} />
+          <JobseekerExploreView
+            onSelectJob={handleSelectJob}
+            onOpenApplyModal={handleOpenApplyModal}
+          />
         )}
 
         {/* View 3: Detail Lowongan (Image 3 of Set 3) */}
         {activeTab === 'job-detail' && (
           <JobseekerJobDetailView
             onBack={() => handleTabChange('explore')}
-            onApply={() => setIsApplyModalOpen(true)}
+            onApply={() => handleOpenApplyModal(selectedJobTitle, selectedCompany, selectedJobId)}
+            jobId={selectedJobId}
             jobTitle={selectedJobTitle}
             companyName={selectedCompany}
           />
@@ -112,10 +171,24 @@ export default function JobseekerPortal({
         {activeTab === 'zen' && <JobseekerZenView />}
       </main>
 
+      {/* Auth Modal: Prompt Login when user wants to Apply */}
+      <AuthRequiredModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        onLoginSuccess={handleLoginSuccess}
+        jobTitle={selectedJobTitle}
+        companyName={selectedCompany}
+        onNavigateToRegister={() => {
+          setIsAuthModalOpen(false);
+          window.location.href = '/register';
+        }}
+      />
+
       {/* Modal: Kirim Lamaran Pekerjaan (Image 4 of Set 3) */}
       <JobApplicationModal
         isOpen={isApplyModalOpen}
         onClose={() => setIsApplyModalOpen(false)}
+        jobId={selectedJobId}
         jobTitle={selectedJobTitle}
         companyName={selectedCompany}
       />

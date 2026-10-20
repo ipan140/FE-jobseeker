@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Clock,
   CheckCircle2,
@@ -14,6 +14,7 @@ import {
   User,
   AlertCircle
 } from 'lucide-react';
+import { getMyApplications, type BackendApplicationItem } from '../../lib/api';
 
 interface ApplicationItem {
   id: string;
@@ -109,8 +110,49 @@ const SAMPLE_APPLICATIONS: ApplicationItem[] = [
 ];
 
 export default function JobseekerApplicationsView() {
+  const [applications, setApplications] = useState<ApplicationItem[]>(SAMPLE_APPLICATIONS);
   const [selectedApp, setSelectedApp] = useState<ApplicationItem>(SAMPLE_APPLICATIONS[0]);
-  const [statusFilter, setStatusFilter] = useState<'all' | 'in_progress' | 'interview' | 'accepted' | 'rejected'>('interview');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'in_progress' | 'interview' | 'accepted' | 'rejected'>('all');
+
+  useEffect(() => {
+    getMyApplications(1, 20)
+      .then((res) => {
+        if (res.items && res.items.length > 0) {
+          const mapped: ApplicationItem[] = res.items.map((item) => ({
+            id: item.id,
+            appCode: `#CF-${item.id.slice(0, 5).toUpperCase()}`,
+            jobTitle: item.job_title,
+            companyName: item.company_name,
+            companyTag: item.company_name.slice(0, 2).toUpperCase(),
+            companyTagBg: 'bg-blue-600 text-white',
+            location: 'Indonesia',
+            appliedDate: item.created_at ? new Date(item.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Hari ini',
+            status: item.status === 'interview' ? 'interview' : item.status === 'hired' || item.status === 'offered' ? 'accepted' : item.status === 'rejected' ? 'rejected' : 'in_progress',
+            statusLabel: item.status === 'interview' ? 'Interview' : item.status === 'hired' || item.status === 'offered' ? 'Diterima' : item.status === 'rejected' ? 'Ditolak' : 'Diproses',
+            statusClass: item.status === 'interview' ? 'bg-purple-50 text-purple-700 border border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800' : item.status === 'hired' || item.status === 'offered' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800' : item.status === 'rejected' ? 'bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800' : 'bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800',
+            currentStep: item.status === 'interview' ? 3 : item.status === 'hired' || item.status === 'offered' ? 4 : 2,
+            interviewTime: item.interview_scheduled_at ? new Date(item.interview_scheduled_at).toLocaleString('id-ID') : undefined,
+            meetLink: item.interview_meeting_link || undefined,
+            hrNote: item.interview_notes ? {
+              hrName: 'Maya Amanda',
+              hrRole: `Recruiter • ${item.company_name}`,
+              hrTime: 'Terkini',
+              message: item.interview_notes,
+              avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150',
+            } : undefined,
+          }));
+
+          setApplications([...mapped, ...SAMPLE_APPLICATIONS]);
+          setSelectedApp(mapped[0]);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const filteredApplications = applications.filter((app) => {
+    if (statusFilter === 'all') return true;
+    return app.status === statusFilter;
+  });
 
   return (
     <div className="space-y-6">
@@ -150,7 +192,7 @@ export default function JobseekerApplicationsView() {
         >
           <span>Semua</span>
           <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
-            6
+            {applications.length}
           </span>
         </button>
 
@@ -165,7 +207,7 @@ export default function JobseekerApplicationsView() {
         >
           <span>Diproses</span>
           <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
-            3
+            {applications.filter((a) => a.status === 'in_progress').length}
           </span>
         </button>
 
@@ -180,7 +222,7 @@ export default function JobseekerApplicationsView() {
         >
           <span>Interview</span>
           <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-purple-500 text-white font-extrabold">
-            1
+            {applications.filter((a) => a.status === 'interview').length}
           </span>
         </button>
 
@@ -195,7 +237,7 @@ export default function JobseekerApplicationsView() {
         >
           <span>Diterima</span>
           <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-emerald-100 text-emerald-800 font-bold">
-            1
+            {applications.filter((a) => a.status === 'accepted').length}
           </span>
         </button>
 
@@ -210,7 +252,7 @@ export default function JobseekerApplicationsView() {
         >
           <span>Ditolak</span>
           <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-rose-100 text-rose-800 font-bold">
-            1
+            {applications.filter((a) => a.status === 'rejected').length}
           </span>
         </button>
       </div>
@@ -218,15 +260,15 @@ export default function JobseekerApplicationsView() {
       {/* Main Split Layout: Left Applications List + Right Stepper Timeline Detail */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
-        {/* Left Column: Daftar Pengajuan (Menampilkan 4 dari 6 lamaran) */}
+        {/* Left Column: Daftar Pengajuan */}
         <div className="lg:col-span-5 space-y-4">
           <div className="flex items-center justify-between text-xs">
             <h3 className="font-extrabold text-slate-900 dark:text-white">Daftar Pengajuan</h3>
-            <span className="text-slate-400">Menampilkan 4 dari 6 lamaran</span>
+            <span className="text-slate-400">Menampilkan {filteredApplications.length} dari {applications.length} lamaran</span>
           </div>
 
           <div className="space-y-3">
-            {SAMPLE_APPLICATIONS.map((item) => {
+            {filteredApplications.map((item) => {
               const isSelected = selectedApp.id === item.id;
               return (
                 <div

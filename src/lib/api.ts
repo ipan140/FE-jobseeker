@@ -24,10 +24,13 @@ export interface BackendJobItem {
   is_salary_hidden?: boolean;
   benefits?: string;
   skills_required?: string;
+  screening_questions?: string;
+  urgently_hiring?: boolean;
   status: string;
   company_name: string;
   company_logo?: string;
   company_city?: string;
+  skill_match?: number | null;
   views_count?: number;
   clicks_count?: number;
   created_at: string;
@@ -54,6 +57,7 @@ export interface BackendApplicationItem {
   status: 'applied' | 'reviewing' | 'shortlisted' | 'interview' | 'offered' | 'hired' | 'rejected' | string;
   cover_letter?: string;
   expected_salary?: number;
+  screening_answers?: string;
   interview_scheduled_at?: string;
   interview_meeting_link?: string;
   interview_notes?: string;
@@ -112,6 +116,48 @@ export interface QuickApplyPayload {
   screening_answers?: string;
 }
 
+export interface WorkExperienceItem {
+  id?: string;
+  company_name: string;
+  position_title: string;
+  start_date: string;
+  end_date?: string;
+  is_current_job: boolean;
+  description?: string;
+  salary?: number;
+}
+
+export interface EducationItem {
+  id?: string;
+  institution_name: string;
+  degree: string;
+  field_of_study: string;
+  gpa?: string;
+  graduation_year: number;
+}
+
+export interface JobseekerFullProfile {
+  id: string;
+  user_id: string;
+  full_name: string;
+  phone?: string;
+  headline?: string;
+  bio?: string;
+  city?: string;
+  expected_salary?: number;
+  resume_url?: string;
+  linkedin_url?: string;
+  github_url?: string;
+  portfolio_url?: string;
+  skills?: string;
+  open_to_work: boolean;
+  is_searchable: boolean;
+  work_experiences: WorkExperienceItem[];
+  educations: EducationItem[];
+  projects?: any[];
+  certifications?: any[];
+}
+
 // ==========================================================
 // 2. JOBS ENDPOINTS
 // ==========================================================
@@ -123,6 +169,11 @@ export async function getJobs(params: {
   location?: string;
   category?: string;
   workplace_type?: string;
+  job_type?: string;
+  experience_level?: string;
+  min_salary?: number;
+  max_salary?: number;
+  urgently_hiring?: boolean;
 } = {}): Promise<PaginatedJobsResponse> {
   const query = new URLSearchParams();
   if (params.page) query.set('page', params.page.toString());
@@ -131,6 +182,11 @@ export async function getJobs(params: {
   if (params.location) query.set('location', params.location);
   if (params.category) query.set('category', params.category);
   if (params.workplace_type) query.set('workplace_type', params.workplace_type);
+  if (params.job_type) query.set('job_type', params.job_type);
+  if (params.experience_level) query.set('experience_level', params.experience_level);
+  if (params.min_salary) query.set('min_salary', params.min_salary.toString());
+  if (params.max_salary) query.set('max_salary', params.max_salary.toString());
+  if (params.urgently_hiring !== undefined) query.set('urgently_hiring', params.urgently_hiring.toString());
 
   const res = await fetch(`${API_BASE}/jobs/?${query.toString()}`);
   if (!res.ok) {
@@ -140,7 +196,13 @@ export async function getJobs(params: {
 }
 
 export async function getJobDetail(jobId: string): Promise<BackendJobItem> {
-  const res = await fetch(`${API_BASE}/jobs/${jobId}`);
+  const token = authStorage.getToken();
+  const headers: HeadersInit = {};
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const res = await fetch(`${API_BASE}/jobs/${jobId}`, { headers });
   if (!res.ok) {
     throw new Error('Lowongan pekerjaan tidak ditemukan');
   }
@@ -182,6 +244,38 @@ export async function toggleBookmarkJob(jobId: string): Promise<{ is_saved: bool
     const err = await res.json().catch(() => ({}));
     throw new Error(err.detail || 'Gagal mengubah status simpan lowongan');
   }
+  return await res.json();
+}
+
+export async function getSavedJobs(): Promise<any[]> {
+  const token = authStorage.getToken();
+  if (!token) return [];
+
+  try {
+    const res = await fetch(`${API_BASE}/jobs/saved`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (!res.ok) return [];
+    return await res.json();
+  } catch {
+    return [];
+  }
+}
+
+export async function trackJobClick(jobId: string): Promise<void> {
+  try {
+    await fetch(`${API_BASE}/jobs/${jobId}/track-click`, { method: 'POST' });
+  } catch {
+    // Ignore click tracking failure silently
+  }
+}
+
+export async function getSalaryBenchmarks(category?: string): Promise<any[]> {
+  const query = category ? `?category=${encodeURIComponent(category)}` : '';
+  const res = await fetch(`${API_BASE}/jobs/salary-benchmark${query}`);
+  if (!res.ok) return [];
   return await res.json();
 }
 
@@ -249,6 +343,133 @@ export async function updateApplicationStatus(
     throw new Error(data.detail || 'Gagal memperbarui status lamaran');
   }
   return data;
+}
+
+// Candidate Profile & Resume APIs
+export async function getMyJobseekerProfile(): Promise<JobseekerFullProfile> {
+  const token = authStorage.getToken();
+  if (!token) throw new Error('Belum masuk akun');
+
+  const res = await fetch(`${API_BASE}/applicants/me/full-resume`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!res.ok) {
+    throw new Error('Gagal memuat profil pelamar');
+  }
+  return await res.json();
+}
+
+export async function updateMyJobseekerProfile(payload: Partial<JobseekerFullProfile>): Promise<any> {
+  const token = authStorage.getToken();
+  if (!token) throw new Error('Belum masuk akun');
+
+  const res = await fetch(`${API_BASE}/applicants/me`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Gagal memperbarui profil');
+  }
+  return await res.json();
+}
+
+export async function addWorkExperience(payload: WorkExperienceItem): Promise<any> {
+  const token = authStorage.getToken();
+  if (!token) throw new Error('Belum masuk akun');
+
+  const res = await fetch(`${API_BASE}/applicants/me/experiences`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Gagal menambahkan pengalaman kerja');
+  }
+  return await res.json();
+}
+
+export async function deleteWorkExperience(expId: string): Promise<boolean> {
+  const token = authStorage.getToken();
+  if (!token) throw new Error('Belum masuk akun');
+
+  const res = await fetch(`${API_BASE}/applicants/me/experiences/${expId}`, {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  return res.ok;
+}
+
+export async function addEducation(payload: EducationItem): Promise<any> {
+  const token = authStorage.getToken();
+  if (!token) throw new Error('Belum masuk akun');
+
+  const res = await fetch(`${API_BASE}/applicants/me/educations`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Gagal menambahkan riwayat pendidikan');
+  }
+  return await res.json();
+}
+
+export async function deleteEducation(eduId: string): Promise<boolean> {
+  const token = authStorage.getToken();
+  if (!token) throw new Error('Belum masuk akun');
+
+  const res = await fetch(`${API_BASE}/applicants/me/educations/${eduId}`, {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  return res.ok;
+}
+
+export async function uploadResumeFile(file: File): Promise<any> {
+  const token = authStorage.getToken();
+  if (!token) throw new Error('Belum masuk akun');
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const res = await fetch(`${API_BASE}/applicants/me/upload-resume`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Gagal mengunggah berkas resume');
+  }
+  return await res.json();
 }
 
 // ==========================================================

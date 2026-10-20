@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Search,
   MapPin,
@@ -12,127 +12,101 @@ import {
   ChevronRight,
   ChevronLeft,
   RotateCcw,
-  Sparkles
+  Sparkles,
+  Loader2
 } from 'lucide-react';
+import { getJobs, toggleBookmarkJob, type BackendJobItem, type BackendPaginationMeta } from '../../lib/api';
 
 export interface JobseekerExploreProps {
-  onSelectJob: (jobTitle: string, company: string) => void;
+  onSelectJob: (jobTitle: string, company: string, jobId?: string) => void;
+  onOpenApplyModal?: (jobTitle: string, company: string, jobId?: string) => void;
 }
 
-interface ExploreJobItem {
-  id: string;
-  title: string;
-  isNew?: boolean;
-  companyName: string;
-  verified: boolean;
-  location: string;
-  salaryMin: number;
-  salaryMax: number;
-  tags: string[];
-  postedAt: string;
-  deadline: string;
-  logoBannerText: string;
-  logoBg: string;
-}
-
-const SAMPLE_EXPLORE_JOBS: ExploreJobItem[] = [
-  {
-    id: '1',
-    title: 'Senior React Developer',
-    isNew: true,
-    companyName: 'PT Finansial Integrasi Nusantara',
-    verified: true,
-    location: 'Jakarta Selatan (Hybrid)',
-    salaryMin: 18000000,
-    salaryMax: 25000000,
-    tags: ['React.js', 'TypeScript', 'Tailwind CSS', 'Next.js', 'Rest API'],
-    postedAt: 'Diposting 2 hari yang lalu',
-    deadline: 'Deadline: 28 Nov 2025',
-    logoBannerText: 'FINTEK GLOBAL',
-    logoBg: 'bg-gradient-to-br from-slate-900 to-blue-950',
-  },
-  {
-    id: '2',
-    title: 'Product Manager (Growth & Core)',
-    isNew: false,
-    companyName: 'PT Logika Solusi Digital',
-    verified: true,
-    location: 'Bandung (Remote / WFH)',
-    salaryMin: 16000000,
-    salaryMax: 22000000,
-    tags: ['Product Discovery', 'Scrum', 'Data Analytics', 'Jira'],
-    postedAt: 'Diposting 3 hari yang lalu',
-    deadline: 'Deadline: 05 Des 2025',
-    logoBannerText: 'Cari Lowongan',
-    logoBg: 'bg-gradient-to-br from-slate-100 to-sky-100 dark:from-slate-800 dark:to-slate-900',
-  },
-  {
-    id: '3',
-    title: 'UI/UX Specialist & Design Lead',
-    isNew: false,
-    companyName: 'PT Kreatif Bangun Negeri',
-    verified: true,
-    location: 'Jakarta Pusat (Onsite)',
-    salaryMin: 14000000,
-    salaryMax: 19000000,
-    tags: ['Figma', 'Design System', 'Usability Testing', 'Wireframing'],
-    postedAt: 'Diposting 5 hari yang lalu',
-    deadline: 'Deadline: 12 Des 2025',
-    logoBannerText: 'CARI LOWONGAN',
-    logoBg: 'bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-800 dark:to-slate-900',
-  },
-  {
-    id: '4',
-    title: 'Cloud & DevOps Engineer',
-    isNew: false,
-    companyName: 'PT Awan Komputasi Pratama',
-    verified: true,
-    location: 'Surabaya (Hybrid)',
-    salaryMin: 15000000,
-    salaryMax: 21000000,
-    tags: ['AWS', 'Kubernetes', 'Docker', 'CI/CD'],
-    postedAt: 'Diposting 1 minggu yang lalu',
-    deadline: 'Deadline: 20 Des 2025',
-    logoBannerText: 'STRATUS CORE',
-    logoBg: 'bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900',
-  },
-];
-
-export default function JobseekerExploreView({ onSelectJob }: JobseekerExploreProps) {
-  const [search, setSearch] = useState('Frontend Engineer');
+export default function JobseekerExploreView({ onSelectJob, onOpenApplyModal }: JobseekerExploreProps) {
+  const [search, setSearch] = useState('');
   const [selectedSort, setSelectedSort] = useState('relevant');
-  const [bookmarkedIds, setBookmarkedIds] = useState<string[]>(['3']);
+  const [bookmarkedIds, setBookmarkedIds] = useState<string[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [loading, setLoading] = useState(false);
+
+  // Backend Jobs State
+  const [jobs, setJobs] = useState<BackendJobItem[]>([]);
+  const [paginationMeta, setPaginationMeta] = useState<BackendPaginationMeta>({
+    total_items: 0,
+    total_pages: 1,
+    current_page: 1,
+    per_page: 10,
+    has_next_page: false,
+    has_prev_page: false,
+  });
 
   // Filters State
   const [categoryTech, setCategoryTech] = useState(true);
   const [categoryDesign, setCategoryDesign] = useState(false);
   const [typeFullTime, setTypeFullTime] = useState(true);
-  const [typeRemote, setTypeRemote] = useState(true);
+  const [typeRemote, setTypeRemote] = useState(false);
   const [locJakarta, setLocJakarta] = useState(true);
-  const [salaryRange, setSalaryRange] = useState('10-20');
-  const [expMid, setExpMid] = useState(true);
-  const [expSenior, setExpSenior] = useState(true);
+  const [salaryRange, setSalaryRange] = useState('all');
 
-  const toggleBookmark = (id: string, e: React.MouseEvent) => {
+  const fetchJobs = async (page = 1) => {
+    setLoading(true);
+    try {
+      let minSal: number | undefined = undefined;
+      let maxSal: number | undefined = undefined;
+      if (salaryRange === 'under5') maxSal = 5000000;
+      else if (salaryRange === '5-10') { minSal = 5000000; maxSal = 10000000; }
+      else if (salaryRange === '10-20') { minSal = 10000000; maxSal = 20000000; }
+      else if (salaryRange === 'above20') { minSal = 20000000; }
+
+      const res = await getJobs({
+        page,
+        limit: 10,
+        search: search.trim() || undefined,
+        location: locJakarta ? 'Jakarta' : undefined,
+        workplace_type: typeRemote ? 'remote' : undefined,
+        min_salary: minSal,
+        max_salary: maxSal,
+      });
+
+      if (res.items && res.items.length > 0) {
+        setJobs(res.items);
+        setPaginationMeta(res.meta);
+      }
+    } catch (err) {
+      console.warn('Backend getJobs warning:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchJobs(currentPage);
+  }, [currentPage, search, locJakarta, typeRemote, salaryRange]);
+
+  const toggleBookmark = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setBookmarkedIds((prev) =>
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
     );
+    try {
+      await toggleBookmarkJob(id);
+    } catch {
+      // Ignore if not logged in
+    }
   };
 
   const handleResetFilters = () => {
     setCategoryTech(true);
     setCategoryDesign(false);
     setTypeFullTime(true);
-    setTypeRemote(true);
+    setTypeRemote(false);
     setLocJakarta(true);
-    setSalaryRange('10-20');
-    setExpMid(true);
-    setExpSenior(true);
+    setSalaryRange('all');
+    setSearch('');
   };
 
   const formatCurrency = (min: number, max: number) => {
-    return `Rp ${(min / 1000000).toLocaleString('id-ID')}.000.000 - Rp ${(max / 1000000).toLocaleString('id-ID')}.000.000 / bln`;
+    return `Rp ${(min / 1000000).toFixed(0)}.000.000 - Rp ${(max / 1000000).toFixed(0)}.000.000 / bln`;
   };
 
   return (
@@ -190,7 +164,7 @@ export default function JobseekerExploreView({ onSelectJob }: JobseekerExplorePr
                   />
                   <span>Teknologi Informasi</span>
                 </div>
-                <span className="text-[11px] font-mono text-slate-400">42</span>
+                <span className="text-[11px] font-mono text-slate-400">24</span>
               </label>
 
               <label className="flex items-center justify-between cursor-pointer">
@@ -201,62 +175,17 @@ export default function JobseekerExploreView({ onSelectJob }: JobseekerExplorePr
                     onChange={(e) => setCategoryDesign(e.target.checked)}
                     className="w-4 h-4 rounded text-blue-600"
                   />
-                  <span>Desain & Kreatif</span>
+                  <span>Desain & UI/UX</span>
                 </div>
-                <span className="text-[11px] font-mono text-slate-400">18</span>
-              </label>
-
-              <label className="flex items-center justify-between cursor-pointer">
-                <div className="flex items-center gap-2">
-                  <input type="checkbox" className="w-4 h-4 rounded text-blue-600" />
-                  <span>Pemasaran & Sales</span>
-                </div>
-                <span className="text-[11px] font-mono text-slate-400">24</span>
-              </label>
-
-              <label className="flex items-center justify-between cursor-pointer">
-                <div className="flex items-center gap-2">
-                  <input type="checkbox" className="w-4 h-4 rounded text-blue-600" />
-                  <span>Keuangan</span>
-                </div>
-                <span className="text-[11px] font-mono text-slate-400">15</span>
-              </label>
-
-              <label className="flex items-center justify-between cursor-pointer">
-                <div className="flex items-center gap-2">
-                  <input type="checkbox" className="w-4 h-4 rounded text-blue-600" />
-                  <span>Operasional</span>
-                </div>
-                <span className="text-[11px] font-mono text-slate-400">10</span>
+                <span className="text-[11px] font-mono text-slate-400">12</span>
               </label>
             </div>
           </div>
 
-          {/* Tipe Pekerjaan */}
+          {/* Model Kerja */}
           <div className="space-y-2.5 pt-3 border-t border-slate-100 dark:border-slate-800">
-            <h4 className="font-bold text-slate-800 dark:text-slate-200">Tipe Pekerjaan</h4>
+            <h4 className="font-bold text-slate-800 dark:text-slate-200">Model Kerja</h4>
             <div className="space-y-2 text-slate-600 dark:text-slate-400">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={typeFullTime}
-                  onChange={(e) => setTypeFullTime(e.target.checked)}
-                  className="w-4 h-4 rounded text-blue-600"
-                />
-                <span>Full-time</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" className="w-4 h-4 rounded text-blue-600" />
-                <span>Part-time</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" className="w-4 h-4 rounded text-blue-600" />
-                <span>Kontrak</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" className="w-4 h-4 rounded text-blue-600" />
-                <span>Magang / Internship</span>
-              </label>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
@@ -264,15 +193,8 @@ export default function JobseekerExploreView({ onSelectJob }: JobseekerExplorePr
                   onChange={(e) => setTypeRemote(e.target.checked)}
                   className="w-4 h-4 rounded text-blue-600"
                 />
-                <span>Remote</span>
+                <span>Remote (WFH 100%)</span>
               </label>
-            </div>
-          </div>
-
-          {/* Lokasi Kerja */}
-          <div className="space-y-2.5 pt-3 border-t border-slate-100 dark:border-slate-800">
-            <h4 className="font-bold text-slate-800 dark:text-slate-200">Lokasi Kerja</h4>
-            <div className="space-y-2 text-slate-600 dark:text-slate-400">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
@@ -280,23 +202,7 @@ export default function JobseekerExploreView({ onSelectJob }: JobseekerExplorePr
                   onChange={(e) => setLocJakarta(e.target.checked)}
                   className="w-4 h-4 rounded text-blue-600"
                 />
-                <span>Jakarta</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" className="w-4 h-4 rounded text-blue-600" />
-                <span>Bandung</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" className="w-4 h-4 rounded text-blue-600" />
-                <span>Surabaya</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" className="w-4 h-4 rounded text-blue-600" />
-                <span>Yogyakarta</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" className="w-4 h-4 rounded text-blue-600" />
-                <span>Luar Negeri / Remote</span>
+                <span>DKI Jakarta (Hybrid / Onsite)</span>
               </label>
             </div>
           </div>
@@ -307,7 +213,7 @@ export default function JobseekerExploreView({ onSelectJob }: JobseekerExplorePr
             <div className="space-y-2 text-slate-600 dark:text-slate-400">
               {['all', 'under5', '5-10', '10-20', 'above20'].map((val) => {
                 const labels: Record<string, string> = {
-                  all: 'Semua',
+                  all: 'Semua Rentang Gaji',
                   under5: '< Rp 5 Juta',
                   '5-10': 'Rp 5 - 10 Juta',
                   '10-20': 'Rp 10 - 20 Juta',
@@ -328,39 +234,6 @@ export default function JobseekerExploreView({ onSelectJob }: JobseekerExplorePr
               })}
             </div>
           </div>
-
-          {/* Pengalaman */}
-          <div className="space-y-2.5 pt-3 border-t border-slate-100 dark:border-slate-800">
-            <h4 className="font-bold text-slate-800 dark:text-slate-200">Pengalaman</h4>
-            <div className="space-y-2 text-slate-600 dark:text-slate-400">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" className="w-4 h-4 rounded text-blue-600" />
-                <span>Fresh Graduate</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" className="w-4 h-4 rounded text-blue-600" />
-                <span>1-3 Tahun</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={expMid}
-                  onChange={(e) => setExpMid(e.target.checked)}
-                  className="w-4 h-4 rounded text-blue-600"
-                />
-                <span>3-5 Tahun</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={expSenior}
-                  onChange={(e) => setExpSenior(e.target.checked)}
-                  className="w-4 h-4 rounded text-blue-600"
-                />
-                <span>&gt; 5 Tahun</span>
-              </label>
-            </div>
-          </div>
         </div>
 
         {/* Right Column: Search Box & Job Listings */}
@@ -374,7 +247,7 @@ export default function JobseekerExploreView({ onSelectJob }: JobseekerExplorePr
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Frontend Engineer..."
+                placeholder="Cari posisi (Frontend, DevOps, UI/UX, Backend)..."
                 className="w-full pl-10 pr-4 py-2 text-xs bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl outline-none"
               />
             </div>
@@ -396,32 +269,42 @@ export default function JobseekerExploreView({ onSelectJob }: JobseekerExplorePr
           {/* Result Metadata */}
           <div className="flex items-center justify-between text-xs text-slate-500 px-1">
             <span>
-              Menampilkan <strong>24 lowongan</strong> ditemukan
+              Menampilkan <strong>{jobs.length} lowongan</strong> dari total <strong>{paginationMeta.total_items || jobs.length}</strong>
             </span>
-            <span className="text-[11px] text-slate-400">Diperbarui 5 menit yang lalu</span>
+            {loading && (
+              <span className="flex items-center gap-1 text-blue-600 font-bold">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" /> Memuat dari backend...
+              </span>
+            )}
           </div>
 
-          {/* Job Cards List (Matching Image 2 horizontal format) */}
+          {/* Job Cards List */}
           <div className="space-y-4">
-            {SAMPLE_EXPLORE_JOBS.map((job) => {
+            {jobs.map((job) => {
               const bookmarked = bookmarkedIds.includes(job.id);
+              const tags = job.skills_required
+                ? job.skills_required.split(',').map((t) => t.trim()).slice(0, 4)
+                : ['Teknologi', 'Full-time'];
+
               return (
                 <div
                   key={job.id}
-                  onClick={() => onSelectJob(job.title, job.companyName)}
+                  onClick={() => onSelectJob(job.title, job.company_name, job.id)}
                   className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm hover:shadow-md hover:border-blue-400 dark:hover:border-blue-600 transition-all p-5 sm:p-6 grid grid-cols-1 md:grid-cols-12 gap-5 items-center cursor-pointer group"
                 >
                   {/* Left Column: Banner Box Mockup */}
                   <div
-                    className={`md:col-span-5 h-44 rounded-2xl ${job.logoBg} flex flex-col items-center justify-center p-4 text-center text-white relative overflow-hidden shadow-inner shrink-0`}
+                    className="md:col-span-5 h-44 rounded-2xl bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 flex flex-col items-center justify-center p-4 text-center text-white relative overflow-hidden shadow-inner shrink-0"
                   >
                     <div className="w-12 h-12 rounded-xl bg-white/10 backdrop-blur-md flex items-center justify-center mb-2">
                       <Sparkles className="w-6 h-6 text-sky-300" />
                     </div>
                     <span className="text-sm font-black tracking-wider uppercase">
-                      {job.logoBannerText}
+                      {job.company_name}
                     </span>
-                    <span className="text-[10px] text-blue-200/80 mt-1">Enterprise Partner</span>
+                    <span className="text-[10px] text-blue-200/80 mt-1">
+                      {job.workplace_type.toUpperCase()} • TERVERIFIKASI
+                    </span>
                   </div>
 
                   {/* Right Column: Job Information */}
@@ -433,17 +316,15 @@ export default function JobseekerExploreView({ onSelectJob }: JobseekerExplorePr
                             <h3 className="text-base font-extrabold text-slate-900 dark:text-white group-hover:text-blue-600 transition-colors leading-tight">
                               {job.title}
                             </h3>
-                            {job.isNew && (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700 dark:bg-blue-900/60 dark:text-blue-300">
-                                Baru
+                            {job.urgently_hiring && (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300">
+                                Mendesak
                               </span>
                             )}
                           </div>
                           <div className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400 font-semibold mt-1">
-                            <span>{job.companyName}</span>
-                            {job.verified && (
-                              <CheckCircle2 className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-                            )}
+                            <span>{job.company_name}</span>
+                            <CheckCircle2 className="w-3.5 h-3.5 text-blue-500 shrink-0" />
                             <span>•</span>
                             <span className="flex items-center gap-1 text-slate-500">
                               <MapPin className="w-3 h-3" />
@@ -469,12 +350,12 @@ export default function JobseekerExploreView({ onSelectJob }: JobseekerExplorePr
 
                       {/* Salary */}
                       <div className="text-sm font-extrabold text-blue-600 dark:text-blue-400 mt-2">
-                        {formatCurrency(job.salaryMin, job.salaryMax)}
+                        {formatCurrency(job.salary_min, job.salary_max)}
                       </div>
 
                       {/* Tech Skill Tags */}
                       <div className="flex flex-wrap gap-1.5 mt-2.5">
-                        {job.tags.map((t, idx) => (
+                        {tags.map((t, idx) => (
                           <span
                             key={idx}
                             className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-[10px] font-semibold text-slate-700 dark:text-slate-300"
@@ -487,17 +368,15 @@ export default function JobseekerExploreView({ onSelectJob }: JobseekerExplorePr
 
                     {/* Bottom Metadata & Button */}
                     <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800 text-xs">
-                      <div className="flex items-center gap-3 text-[11px] text-slate-400">
-                        <span>{job.postedAt}</span>
+                      <div className="flex items-center gap-2 text-[11px] text-slate-400">
+                        <span>{job.created_at ? new Date(job.created_at).toLocaleDateString('id-ID') : 'Aktif'}</span>
                         <span>•</span>
-                        <span className="text-amber-600 dark:text-amber-400 font-medium">
-                          {job.deadline}
-                        </span>
+                        <span className="text-emerald-600 font-medium">{job.job_type}</span>
                       </div>
 
                       <button
                         type="button"
-                        onClick={() => onSelectJob(job.title, job.companyName)}
+                        onClick={() => onSelectJob(job.title, job.company_name, job.id)}
                         className="py-1.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-sm transition-all cursor-pointer"
                       >
                         Lihat Detail
@@ -513,27 +392,26 @@ export default function JobseekerExploreView({ onSelectJob }: JobseekerExplorePr
           <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex items-center justify-between text-xs text-slate-500">
             <button
               type="button"
-              className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 font-semibold"
+              disabled={currentPage <= 1}
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              className={`px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 font-semibold cursor-pointer ${
+                currentPage <= 1 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-50'
+              }`}
             >
               &lt; Sebelumnya
             </button>
-            <div className="flex items-center gap-1">
-              <button type="button" className="w-8 h-8 rounded-xl bg-blue-600 text-white font-bold">
-                1
-              </button>
-              <button type="button" className="w-8 h-8 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800">
-                2
-              </button>
-              <button type="button" className="w-8 h-8 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800">
-                3
-              </button>
-              <button type="button" className="w-8 h-8 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800">
-                4
-              </button>
+            <div className="flex items-center gap-1 font-bold">
+              <span>Halaman {currentPage} dari {paginationMeta.total_pages || 1}</span>
             </div>
             <button
               type="button"
-              className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 font-semibold"
+              disabled={!paginationMeta.has_next_page && currentPage >= paginationMeta.total_pages}
+              onClick={() => setCurrentPage((p) => p + 1)}
+              className={`px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 font-semibold cursor-pointer ${
+                !paginationMeta.has_next_page && currentPage >= paginationMeta.total_pages
+                  ? 'opacity-50 cursor-not-allowed'
+                  : 'hover:bg-slate-50'
+              }`}
             >
               Selanjutnya &gt;
             </button>

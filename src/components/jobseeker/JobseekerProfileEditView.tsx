@@ -18,6 +18,12 @@ import {
   X,
   ChevronRight
 } from 'lucide-react';
+import {
+  addWorkExperience,
+  deleteWorkExperience,
+  updateMyJobseekerProfile,
+  uploadResumeFile
+} from '../../lib/api';
 
 export interface JobseekerProfileEditViewProps {
   onBackToProfile: () => void;
@@ -119,6 +125,16 @@ export default function JobseekerProfileEditView({
       descriptions: descList.length > 0 ? descList : ['Bertanggung jawab atas pengembangan fitur web frontend.'],
     };
 
+    // Save to Backend API
+    addWorkExperience({
+      company_name: company,
+      position_title: position,
+      start_date: startDate || '2024-01',
+      end_date: isCurrent ? undefined : (endDate || '2024-12'),
+      is_current_job: isCurrent,
+      description: description || undefined,
+    }).catch((err) => console.warn('Backend add experience warning:', err));
+
     setExperiences([newExp, ...experiences]);
     setCompany('');
     setPosition('');
@@ -131,6 +147,7 @@ export default function JobseekerProfileEditView({
   };
 
   const handleDeleteExperience = (id: string) => {
+    deleteWorkExperience(id).catch(() => {});
     setExperiences(experiences.filter((exp) => exp.id !== id));
     showNotification('Pengalaman kerja dihapus');
   };
@@ -139,17 +156,22 @@ export default function JobseekerProfileEditView({
     if (e.key === 'Enter' && newSkillInput.trim()) {
       e.preventDefault();
       if (!skills.includes(newSkillInput.trim())) {
-        setSkills([...skills, newSkillInput.trim()]);
+        const updated = [...skills, newSkillInput.trim()];
+        setSkills(updated);
+        updateMyJobseekerProfile({ skills: updated.join(', ') }).catch(() => {});
       }
       setNewSkillInput('');
     }
   };
 
   const handleRemoveSkill = (skillToRemove: string) => {
-    setSkills(skills.filter((s) => s !== skillToRemove));
+    const updated = skills.filter((s) => s !== skillToRemove);
+    setSkills(updated);
+    updateMyJobseekerProfile({ skills: updated.join(', ') }).catch(() => {});
   };
 
   const handleSimpanDraf = () => {
+    updateMyJobseekerProfile({ skills: skills.join(', ') }).catch(() => {});
     showNotification('Draf profil karir berhasil disimpan!');
     setTimeout(() => {
       onBackToProfile();
@@ -161,6 +183,7 @@ export default function JobseekerProfileEditView({
       setCurrentStep(currentStep + 1);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
+      updateMyJobseekerProfile({ skills: skills.join(', ') }).catch(() => {});
       showNotification('Profil berhasil diperbarui 100%!');
       if (onSaveSuccess) onSaveSuccess();
       setTimeout(() => {
@@ -685,9 +708,11 @@ export default function JobseekerProfileEditView({
                       className="hidden"
                       onChange={(e) => {
                         if (e.target.files && e.target.files[0]) {
-                          setCvFileName(e.target.files[0].name);
-                          setCvFileSize(`${(e.target.files[0].size / (1024 * 1024)).toFixed(1)} MB`);
+                          const file = e.target.files[0];
+                          setCvFileName(file.name);
+                          setCvFileSize(`${(file.size / (1024 * 1024)).toFixed(1)} MB`);
                           setCvUploadDate('Hari ini');
+                          uploadResumeFile(file).catch(() => {});
                           showNotification('File resume berhasil diganti!');
                         }
                       }}
@@ -705,9 +730,11 @@ export default function JobseekerProfileEditView({
                 className="hidden"
                 onChange={(e) => {
                   if (e.target.files && e.target.files[0]) {
-                    setCvFileName(e.target.files[0].name);
-                    setCvFileSize(`${(e.target.files[0].size / (1024 * 1024)).toFixed(1)} MB`);
+                    const file = e.target.files[0];
+                    setCvFileName(file.name);
+                    setCvFileSize(`${(file.size / (1024 * 1024)).toFixed(1)} MB`);
                     setCvUploadDate('Hari ini');
+                    uploadResumeFile(file).catch(() => {});
                     showNotification('File resume berhasil diunggah!');
                   }
                 }}

@@ -102,7 +102,9 @@ export default function LoginPage() {
       }
 
       setTimeout(() => {
-        window.location.href = '/dashboard';
+        const params = new URLSearchParams(window.location.search);
+        const redirectUrl = params.get('redirect') || '/dashboard';
+        window.location.href = redirectUrl;
       }, 900);
     } catch (err: any) {
       setErrorMessage(

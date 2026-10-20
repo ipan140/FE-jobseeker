@@ -6,7 +6,9 @@ import {
   Sun,
   Moon,
   PawPrint,
-  ArrowRightLeft
+  ArrowRightLeft,
+  LogIn,
+  UserPlus
 } from 'lucide-react';
 import { authStorage } from '../../lib/auth';
 
@@ -14,16 +16,39 @@ export interface JobseekerNavbarProps {
   activeTab: 'dashboard' | 'explore' | 'job-detail' | 'applications' | 'profile' | 'profile-edit' | 'zen';
   onSelectTab: (tab: 'dashboard' | 'explore' | 'job-detail' | 'applications' | 'profile' | 'profile-edit' | 'zen') => void;
   onSwitchToConsole?: (role: 'admin' | 'merchant') => void;
+  isAuthenticated?: boolean;
+  userName?: string;
+  userRole?: string;
+  onOpenAuthModal?: () => void;
+  onLogout?: () => void;
 }
 
 export default function JobseekerNavbar({
   activeTab,
   onSelectTab,
   onSwitchToConsole,
+  isAuthenticated = false,
+  userName = 'Budi Santoso',
+  userRole = 'Frontend Engineer',
+  onOpenAuthModal,
+  onLogout,
 }: JobseekerNavbarProps) {
   const handleLogout = () => {
     authStorage.clearSession();
-    window.location.href = '/login';
+    if (onLogout) {
+      onLogout();
+    } else {
+      window.location.href = '/login';
+    }
+  };
+
+  const handleProtectedTab = (tab: 'applications' | 'profile') => {
+    if (!isAuthenticated) {
+      if (onOpenAuthModal) onOpenAuthModal();
+      else window.location.href = '/login';
+    } else {
+      onSelectTab(tab);
+    }
   };
 
   return (
@@ -73,7 +98,7 @@ export default function JobseekerNavbar({
 
             <button
               type="button"
-              onClick={() => onSelectTab('applications')}
+              onClick={() => handleProtectedTab('applications')}
               className={`px-3.5 py-2 rounded-xl transition-all cursor-pointer relative ${
                 activeTab === 'applications'
                   ? 'text-blue-600 dark:text-blue-400 font-extrabold after:absolute after:bottom-0 after:left-3.5 after:right-3.5 after:h-0.5 after:bg-blue-600'
@@ -85,7 +110,7 @@ export default function JobseekerNavbar({
 
             <button
               type="button"
-              onClick={() => onSelectTab('profile')}
+              onClick={() => handleProtectedTab('profile')}
               className={`px-3.5 py-2 rounded-xl transition-all cursor-pointer relative ${
                 activeTab === 'profile' || activeTab === 'profile-edit'
                   ? 'text-blue-600 dark:text-blue-400 font-extrabold after:absolute after:bottom-0 after:left-3.5 after:right-3.5 after:h-0.5 after:bg-blue-600'
@@ -111,7 +136,7 @@ export default function JobseekerNavbar({
           </nav>
         </div>
 
-        {/* Right Nav: Console Switcher, Bell, Profile, Logout */}
+        {/* Right Nav: Console Switcher, Auth Buttons OR Profile + Bell */}
         <div className="flex items-center gap-3 sm:gap-4 text-xs">
           {/* Quick Console Switcher */}
           {onSwitchToConsole && (
@@ -134,44 +159,72 @@ export default function JobseekerNavbar({
             </div>
           )}
 
-          {/* Bell Icon */}
-          <button
-            type="button"
-            className="p-2 rounded-xl text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors relative cursor-pointer"
-          >
-            <Bell className="w-4.5 h-4.5" />
-            <span className="w-2 h-2 rounded-full bg-red-500 absolute top-2 right-2 ring-2 ring-white dark:ring-slate-900" />
-          </button>
+          {/* If NOT Authenticated: Show Masuk & Daftar */}
+          {!isAuthenticated ? (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (onOpenAuthModal) onOpenAuthModal();
+                  else window.location.href = '/login';
+                }}
+                className="px-4 py-2 rounded-xl text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/50 font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+              >
+                <LogIn className="w-4 h-4" />
+                <span>Masuk</span>
+              </button>
 
-          {/* User Profile Pill */}
-          <div
-            onClick={() => onSelectTab('profile')}
-            className="flex items-center gap-3 pl-2 sm:border-l border-slate-200 dark:border-slate-800 cursor-pointer hover:opacity-80 transition-opacity"
-            title="Lihat Profil Saya"
-          >
-            <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold text-xs flex items-center justify-center ring-2 ring-blue-100 dark:ring-blue-900">
-              BS
+              <a
+                href="/register"
+                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition-all shadow-md shadow-blue-600/20 flex items-center gap-1.5 cursor-pointer"
+              >
+                <UserPlus className="w-4 h-4" />
+                <span>Daftar</span>
+              </a>
             </div>
-            <div className="hidden sm:block text-left">
-              <span className="text-xs font-bold text-slate-900 dark:text-white leading-tight block">
-                Budi Santoso
-              </span>
-              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium block">
-                Frontend Engineer
-              </span>
-            </div>
-          </div>
+          ) : (
+            /* If Authenticated: Show Notification Bell, User Pill, and Logout */
+            <>
+              {/* Bell Icon */}
+              <button
+                type="button"
+                className="p-2 rounded-xl text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors relative cursor-pointer"
+              >
+                <Bell className="w-4.5 h-4.5" />
+                <span className="w-2 h-2 rounded-full bg-red-500 absolute top-2 right-2 ring-2 ring-white dark:ring-slate-900" />
+              </button>
 
-          {/* Logout */}
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="hidden sm:flex items-center gap-1.5 text-slate-500 hover:text-rose-600 font-semibold cursor-pointer ml-1"
-            title="Keluar"
-          >
-            <LogOut className="w-4 h-4" />
-            <span>Keluar</span>
-          </button>
+              {/* User Profile Pill */}
+              <div
+                onClick={() => onSelectTab('profile')}
+                className="flex items-center gap-3 pl-2 sm:border-l border-slate-200 dark:border-slate-800 cursor-pointer hover:opacity-80 transition-opacity"
+                title="Lihat Profil Saya"
+              >
+                <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold text-xs flex items-center justify-center ring-2 ring-blue-100 dark:ring-blue-900">
+                  {userName.split(' ').map((n) => n[0]).slice(0, 2).join('') || 'BS'}
+                </div>
+                <div className="hidden sm:block text-left">
+                  <span className="text-xs font-bold text-slate-900 dark:text-white leading-tight block">
+                    {userName}
+                  </span>
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium block">
+                    {userRole}
+                  </span>
+                </div>
+              </div>
+
+              {/* Logout */}
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="hidden sm:flex items-center gap-1.5 text-slate-500 hover:text-rose-600 font-semibold cursor-pointer ml-1"
+                title="Keluar"
+              >
+                <LogOut className="w-4 h-4" />
+                <span>Keluar</span>
+              </button>
+            </>
+          )}
         </div>
 
       </div>

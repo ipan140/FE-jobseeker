@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Search,
   MapPin,
@@ -11,18 +11,29 @@ import {
   ChevronRight,
   TrendingUp,
   Briefcase,
+  Building2,
   Zap,
   Sparkles,
   PawPrint
 } from 'lucide-react';
+import {
+  getJobs,
+  getMyApplications,
+  toggleBookmarkJob,
+  type BackendJobItem,
+  type BackendApplicationItem
+} from '../../lib/api';
 
 export interface JobseekerDashboardProps {
-  onSelectJob: (jobTitle: string, company: string) => void;
-  onOpenApplyModal: (jobTitle: string, company: string) => void;
+  onSelectJob: (jobTitle: string, company: string, jobId?: string) => void;
+  onOpenApplyModal: (jobTitle: string, company: string, jobId?: string) => void;
   onNavigateToExplore: () => void;
   onNavigateToZen: () => void;
   onNavigateToApplications?: () => void;
   onNavigateToProfile?: () => void;
+  isAuthenticated?: boolean;
+  userName?: string;
+  onOpenAuthModal?: () => void;
 }
 
 export default function JobseekerDashboardView({
@@ -32,37 +43,91 @@ export default function JobseekerDashboardView({
   onNavigateToZen,
   onNavigateToApplications,
   onNavigateToProfile,
+  isAuthenticated = false,
+  userName = 'Budi Santoso',
+  onOpenAuthModal,
 }: JobseekerDashboardProps) {
   const [searchKeyword, setSearchKeyword] = useState('Frontend Developer');
   const [selectedLocation, setSelectedLocation] = useState('Jakarta (Jabodetabek)');
   const [selectedWorkType, setSelectedWorkType] = useState('Full-time');
   const [recommendationFilter, setRecommendationFilter] = useState<'all' | 'interest' | 'salary'>('all');
   const [bookmarkedJobs, setBookmarkedJobs] = useState<string[]>(['1']);
+  const [backendJobs, setBackendJobs] = useState<BackendJobItem[]>([]);
+  const [applicationsCount, setApplicationsCount] = useState<number>(4);
+  const [interviewCount, setInterviewCount] = useState<number>(1);
+  const [offeredCount, setOfferedCount] = useState<number>(0);
 
-  const toggleBookmark = (id: string, e: React.MouseEvent) => {
+  useEffect(() => {
+    getJobs({ page: 1, limit: 6 })
+      .then((res) => {
+        if (res.items && res.items.length > 0) {
+          setBackendJobs(res.items);
+        }
+      })
+      .catch(() => {});
+
+    if (isAuthenticated) {
+      getMyApplications(1, 10)
+        .then((res) => {
+          if (res.items && res.items.length > 0) {
+            setApplicationsCount(res.items.length);
+            const interviews = res.items.filter((a) => a.status === 'interview').length;
+            setInterviewCount(interviews);
+            const offered = res.items.filter((a) => a.status === 'offered' || a.status === 'hired').length;
+            setOfferedCount(offered);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [isAuthenticated]);
+
+  const toggleBookmark = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setBookmarkedJobs((prev) =>
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
     );
+    try {
+      await toggleBookmarkJob(id);
+    } catch {
+      // Ignore if not logged in
+    }
   };
 
   return (
     <div className="space-y-8">
       {/* Hero Welcome & Search Header (Matching Image 1) */}
       <div className="space-y-4">
-        {/* Verification Pill */}
-        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 text-xs font-bold">
-          <CheckCircle2 className="w-3.5 h-3.5" />
-          <span>Akun Terverifikasi • Siap Kerja Aktif</span>
-        </div>
+        {/* Verification Pill / Status */}
+        {isAuthenticated ? (
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 text-xs font-bold">
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            <span>Akun Terverifikasi • Siap Kerja Aktif</span>
+          </div>
+        ) : (
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 text-xs font-bold">
+            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+            <span>Eksplorasi Karir Terbuka • Transparansi Gaji 100%</span>
+          </div>
+        )}
 
         {/* Big Headline */}
         <div>
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-slate-900 dark:text-white tracking-tight">
-            Halo, Budi Santoso!{' '}
-            <span className="text-blue-600 dark:text-blue-400">
-              Temukan Karir Impianmu Hari Ini
-            </span>
+            {isAuthenticated ? (
+              <>
+                Halo, {userName}!{' '}
+                <span className="text-blue-600 dark:text-blue-400">
+                  Temukan Karir Impianmu Hari Ini
+                </span>
+              </>
+            ) : (
+              <>
+                Jelajahi Lowongan &{' '}
+                <span className="text-blue-600 dark:text-blue-400">
+                  Temukan Karir Impianmu
+                </span>
+              </>
+            )}
           </h1>
           <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-2 max-w-3xl leading-relaxed">
             Jelajahi ribuan peluang karir terpilih dari perusahaan terkemuka di Indonesia dan global dengan transparansi gaji serta proses yang terjamin.
@@ -143,64 +208,127 @@ export default function JobseekerDashboardView({
         </div>
       </div>
 
-      {/* 3 Applicant Metrics Cards (Matching Image 1) */}
+      {/* 3 Metrics Cards (Conditional: Personal Metrics if Authenticated, Platform Highlights if Guest) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-        {/* Card 1: Lamaran Terkirim */}
-        <div
-          onClick={onNavigateToApplications}
-          className="p-5 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex items-center justify-between cursor-pointer hover:border-blue-500 dark:hover:border-blue-500 hover:shadow-md transition-all group"
-          title="Lihat Lamaran Saya"
-        >
-          <div>
-            <span className="text-xs text-slate-500 font-semibold block group-hover:text-blue-600 transition-colors">Lamaran Terkirim</span>
-            <div className="flex items-baseline gap-2 mt-1">
-              <span className="text-3xl font-black text-slate-900 dark:text-white">4</span>
-              <span className="text-[11px] text-emerald-600 font-bold">+1 minggu ini</span>
+        {isAuthenticated ? (
+          <>
+            {/* Card 1: Lamaran Terkirim */}
+            <div
+              onClick={onNavigateToApplications}
+              className="p-5 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex items-center justify-between cursor-pointer hover:border-blue-500 dark:hover:border-blue-500 hover:shadow-md transition-all group"
+              title="Lihat Lamaran Saya"
+            >
+              <div>
+                <span className="text-xs text-slate-500 font-semibold block group-hover:text-blue-600 transition-colors">Lamaran Terkirim</span>
+                <div className="flex items-baseline gap-2 mt-1">
+                  <span className="text-3xl font-black text-slate-900 dark:text-white">{applicationsCount}</span>
+                  <span className="text-[11px] text-emerald-600 font-bold">+1 minggu ini</span>
+                </div>
+              </div>
+              <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 flex items-center justify-center shadow-xs group-hover:scale-105 transition-transform">
+                <Send className="w-5 h-5" />
+              </div>
             </div>
-          </div>
-          <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 flex items-center justify-center shadow-xs group-hover:scale-105 transition-transform">
-            <Send className="w-5 h-5" />
-          </div>
-        </div>
 
-        {/* Card 2: Panggilan Wawancara */}
-        <div
-          onClick={onNavigateToApplications}
-          className="p-5 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex items-center justify-between cursor-pointer hover:border-blue-500 dark:hover:border-blue-500 hover:shadow-md transition-all group"
-          title="Lihat Jadwal Wawancara"
-        >
-          <div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs text-slate-500 font-semibold block group-hover:text-blue-600 transition-colors">Panggilan Wawancara</span>
-              <span className="w-2 h-2 rounded-full bg-blue-600" />
+            {/* Card 2: Panggilan Wawancara */}
+            <div
+              onClick={onNavigateToApplications}
+              className="p-5 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex items-center justify-between cursor-pointer hover:border-blue-500 dark:hover:border-blue-500 hover:shadow-md transition-all group"
+              title="Lihat Jadwal Wawancara"
+            >
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-slate-500 font-semibold block group-hover:text-blue-600 transition-colors">Panggilan Wawancara</span>
+                  <span className="w-2 h-2 rounded-full bg-blue-600" />
+                </div>
+                <div className="flex items-baseline gap-2 mt-1">
+                  <span className="text-3xl font-black text-slate-900 dark:text-white">{interviewCount}</span>
+                  <span className="text-[11px] text-blue-600 font-bold">Jadwal: Besok, 14:00</span>
+                </div>
+              </div>
+              <div className="w-12 h-12 rounded-2xl bg-sky-50 dark:bg-sky-950/60 text-sky-600 flex items-center justify-center shadow-xs group-hover:scale-105 transition-transform">
+                <Calendar className="w-5 h-5" />
+              </div>
             </div>
-            <div className="flex items-baseline gap-2 mt-1">
-              <span className="text-3xl font-black text-slate-900 dark:text-white">1</span>
-              <span className="text-[11px] text-blue-600 font-bold">Jadwal: Besok, 14:00</span>
-            </div>
-          </div>
-          <div className="w-12 h-12 rounded-2xl bg-sky-50 dark:bg-sky-950/60 text-sky-600 flex items-center justify-center shadow-xs group-hover:scale-105 transition-transform">
-            <Calendar className="w-5 h-5" />
-          </div>
-        </div>
 
-        {/* Card 3: Tawaran Kerja */}
-        <div
-          onClick={onNavigateToApplications}
-          className="p-5 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex items-center justify-between cursor-pointer hover:border-blue-500 dark:hover:border-blue-500 hover:shadow-md transition-all group"
-          title="Lihat Tawaran Kerja"
-        >
-          <div>
-            <span className="text-xs text-slate-500 font-semibold block group-hover:text-blue-600 transition-colors">Tawaran Kerja</span>
-            <div className="flex items-baseline gap-2 mt-1">
-              <span className="text-3xl font-black text-slate-900 dark:text-white">0</span>
-              <span className="text-[11px] text-slate-400">Menunggu keputusan</span>
+            {/* Card 3: Tawaran Kerja */}
+            <div
+              onClick={onNavigateToApplications}
+              className="p-5 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex items-center justify-between cursor-pointer hover:border-blue-500 dark:hover:border-blue-500 hover:shadow-md transition-all group"
+              title="Lihat Tawaran Kerja"
+            >
+              <div>
+                <span className="text-xs text-slate-500 font-semibold block group-hover:text-blue-600 transition-colors">Tawaran Kerja</span>
+                <div className="flex items-baseline gap-2 mt-1">
+                  <span className="text-3xl font-black text-slate-900 dark:text-white">{offeredCount}</span>
+                  <span className="text-[11px] text-slate-400">Menunggu keputusan</span>
+                </div>
+              </div>
+              <div className="w-12 h-12 rounded-2xl bg-slate-50 dark:bg-slate-800 text-slate-500 flex items-center justify-center shadow-xs group-hover:scale-105 transition-transform">
+                <Award className="w-5 h-5" />
+              </div>
             </div>
-          </div>
-          <div className="w-12 h-12 rounded-2xl bg-slate-50 dark:bg-slate-800 text-slate-500 flex items-center justify-center shadow-xs group-hover:scale-105 transition-transform">
-            <Award className="w-5 h-5" />
-          </div>
-        </div>
+          </>
+        ) : (
+          <>
+            {/* Guest Highlight 1: Lowongan Aktif */}
+            <div
+              onClick={onNavigateToExplore}
+              className="p-5 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex items-center justify-between cursor-pointer hover:border-blue-500 dark:hover:border-blue-500 hover:shadow-md transition-all group"
+              title="Jelajahi Lowongan"
+            >
+              <div>
+                <span className="text-xs text-slate-500 font-semibold block group-hover:text-blue-600 transition-colors">Peluang Karir Aktif</span>
+                <div className="flex items-baseline gap-2 mt-1">
+                  <span className="text-3xl font-black text-slate-900 dark:text-white">2.500+</span>
+                  <span className="text-[11px] text-emerald-600 font-bold">Terverifikasi</span>
+                </div>
+              </div>
+              <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 flex items-center justify-center shadow-xs group-hover:scale-105 transition-transform">
+                <Briefcase className="w-5 h-5" />
+              </div>
+            </div>
+
+            {/* Guest Highlight 2: Perusahaan Mitra */}
+            <div
+              onClick={onNavigateToExplore}
+              className="p-5 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex items-center justify-between cursor-pointer hover:border-blue-500 dark:hover:border-blue-500 hover:shadow-md transition-all group"
+              title="Perusahaan Mitra"
+            >
+              <div>
+                <span className="text-xs text-slate-500 font-semibold block group-hover:text-blue-600 transition-colors">Perusahaan Mitra</span>
+                <div className="flex items-baseline gap-2 mt-1">
+                  <span className="text-3xl font-black text-slate-900 dark:text-white">1.200+</span>
+                  <span className="text-[11px] text-blue-600 font-bold">Startup & BUMN</span>
+                </div>
+              </div>
+              <div className="w-12 h-12 rounded-2xl bg-sky-50 dark:bg-sky-950/60 text-sky-600 flex items-center justify-center shadow-xs group-hover:scale-105 transition-transform">
+                <Building2 className="w-5 h-5" />
+              </div>
+            </div>
+
+            {/* Guest Highlight 3: Bebas Biaya */}
+            <div
+              onClick={() => {
+                if (onOpenAuthModal) onOpenAuthModal();
+                else window.location.href = '/login';
+              }}
+              className="p-5 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex items-center justify-between cursor-pointer hover:border-blue-500 dark:hover:border-blue-500 hover:shadow-md transition-all group"
+              title="100% Gratis untuk Pelamar"
+            >
+              <div>
+                <span className="text-xs text-slate-500 font-semibold block group-hover:text-blue-600 transition-colors">Bebas Biaya 100%</span>
+                <div className="flex items-baseline gap-2 mt-1">
+                  <span className="text-3xl font-black text-slate-900 dark:text-white">Gratis</span>
+                  <span className="text-[11px] text-emerald-600 font-bold">Untuk Pencari Kerja</span>
+                </div>
+              </div>
+              <div className="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 flex items-center justify-center shadow-xs group-hover:scale-105 transition-transform">
+                <CheckCircle2 className="w-5 h-5" />
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Section: Rekomendasi Lowongan untukmu */}
@@ -497,117 +625,180 @@ export default function JobseekerDashboardView({
 
         {/* List Rows */}
         <div className="space-y-3">
-          {/* Row 1: Bukalapak */}
-          <div className="p-4 sm:p-5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:border-blue-300 dark:hover:border-blue-700 transition-all">
-            <div className="flex items-start sm:items-center gap-4">
-              <div className="w-11 h-11 rounded-xl bg-rose-600 text-white font-black text-xs flex items-center justify-center shrink-0">
-                BL
-              </div>
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-400">
-                    Baru
-                  </span>
-                  <h4 className="text-sm font-bold text-slate-900 dark:text-white">
-                    Frontend React & React Native Specialist
-                  </h4>
+          {backendJobs.length > 0 ? (
+            backendJobs.map((job) => (
+              <div
+                key={job.id}
+                className="p-4 sm:p-5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:border-blue-300 dark:hover:border-blue-700 transition-all"
+              >
+                <div className="flex items-start sm:items-center gap-4">
+                  <div className="w-11 h-11 rounded-xl bg-blue-600 text-white font-black text-xs flex items-center justify-center shrink-0">
+                    {job.company_name.substring(0, 2).toUpperCase()}
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      {job.urgently_hiring && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400">
+                          Mendesak
+                        </span>
+                      )}
+                      <h4
+                        onClick={() => onSelectJob(job.title, job.company_name, job.id)}
+                        className="text-sm font-bold text-slate-900 dark:text-white hover:text-blue-600 cursor-pointer"
+                      >
+                        {job.title}
+                      </h4>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                      <span className="font-semibold text-slate-700 dark:text-slate-300">{job.company_name}</span>
+                      <span>•</span>
+                      <span>{job.location} ({job.workplace_type})</span>
+                      <span>•</span>
+                      <span className="font-extrabold text-blue-600 dark:text-blue-400">
+                        Rp {job.salary_min.toLocaleString('id-ID')} - Rp {job.salary_max.toLocaleString('id-ID')} / bln
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {job.skills_required?.split(',').slice(0, 4).map((s, idx) => (
+                        <span key={idx} className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] text-slate-600 dark:text-slate-300">
+                          {s.trim()}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
                 </div>
-                <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                  <span className="font-semibold text-slate-700 dark:text-slate-300">Bukalapak Commerce</span>
-                  <span>•</span>
-                  <span>Bandung / Remote</span>
-                  <span>•</span>
-                  <span className="font-extrabold text-blue-600 dark:text-blue-400">
-                    Rp 14.000.000 - Rp 20.000.000 / bln
-                  </span>
-                </div>
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] text-slate-600 dark:text-slate-300">
-                    Asuransi Swasta & Gigi
-                  </span>
-                  <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] text-slate-600 dark:text-slate-300">
-                    Flexible Hours
-                  </span>
-                  <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] text-slate-600 dark:text-slate-300">
-                    Tunjangan Laptop WFH
-                  </span>
-                </div>
-              </div>
-            </div>
 
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                type="button"
-                className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 text-slate-400 cursor-pointer"
-              >
-                <Bookmark className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => onOpenApplyModal('Frontend React & React Native Specialist', 'Bukalapak Commerce')}
-                className="py-2 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-blue-600/20 transition-all cursor-pointer"
-              >
-                <Zap className="w-3.5 h-3.5" />
-                <span>Lamar Cepat</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Row 2: Dana Sahabat Finansial */}
-          <div className="p-4 sm:p-5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:border-blue-300 dark:hover:border-blue-700 transition-all">
-            <div className="flex items-start sm:items-center gap-4">
-              <div className="w-11 h-11 rounded-xl bg-sky-600 text-white font-black text-xs flex items-center justify-center shrink-0">
-                DS
-              </div>
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-400">
-                    Baru
-                  </span>
-                  <h4 className="text-sm font-bold text-slate-900 dark:text-white">
-                    Junior Web Developer (Next.js & Supabase)
-                  </h4>
-                </div>
-                <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                  <span className="font-semibold text-slate-700 dark:text-slate-300">Dana Sahabat Finansial</span>
-                  <span>•</span>
-                  <span>Jakarta Pusat • Onsite</span>
-                  <span>•</span>
-                  <span className="font-extrabold text-blue-600 dark:text-blue-400">
-                    Rp 9.000.000 - Rp 13.000.000 / bln
-                  </span>
-                </div>
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] text-slate-600 dark:text-slate-300">
-                    BPJS & Asuransi Jiwa
-                  </span>
-                  <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] text-slate-600 dark:text-slate-300">
-                    Anggaran Kursus & Sertifikasi
-                  </span>
-                  <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] text-slate-600 dark:text-slate-300">
-                    Makan Siang Gratis
-                  </span>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={(e) => toggleBookmark(job.id, e)}
+                    className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 text-slate-400 cursor-pointer"
+                  >
+                    <Bookmark className={`w-4 h-4 ${bookmarkedJobs.includes(job.id) ? 'fill-blue-600 text-blue-600' : ''}`} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onOpenApplyModal(job.title, job.company_name, job.id)}
+                    className="py-2 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-blue-600/20 transition-all cursor-pointer"
+                  >
+                    <Zap className="w-3.5 h-3.5" />
+                    <span>Lamar Cepat</span>
+                  </button>
                 </div>
               </div>
-            </div>
+            ))
+          ) : (
+            <>
+              {/* Row 1: Bukalapak */}
+              <div className="p-4 sm:p-5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:border-blue-300 dark:hover:border-blue-700 transition-all">
+                <div className="flex items-start sm:items-center gap-4">
+                  <div className="w-11 h-11 rounded-xl bg-rose-600 text-white font-black text-xs flex items-center justify-center shrink-0">
+                    BL
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-400">
+                        Baru
+                      </span>
+                      <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                        Frontend React & React Native Specialist
+                      </h4>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                      <span className="font-semibold text-slate-700 dark:text-slate-300">Bukalapak Commerce</span>
+                      <span>•</span>
+                      <span>Bandung / Remote</span>
+                      <span>•</span>
+                      <span className="font-extrabold text-blue-600 dark:text-blue-400">
+                        Rp 14.000.000 - Rp 20.000.000 / bln
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] text-slate-600 dark:text-slate-300">
+                        Asuransi Swasta & Gigi
+                      </span>
+                      <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] text-slate-600 dark:text-slate-300">
+                        Flexible Hours
+                      </span>
+                    </div>
+                  </div>
+                </div>
 
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                type="button"
-                className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 text-slate-400 cursor-pointer"
-              >
-                <Bookmark className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => onOpenApplyModal('Junior Web Developer (Next.js & Supabase)', 'Dana Sahabat Finansial')}
-                className="py-2 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-blue-600/20 transition-all cursor-pointer"
-              >
-                <Zap className="w-3.5 h-3.5" />
-                <span>Lamar Cepat</span>
-              </button>
-            </div>
-          </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 text-slate-400 cursor-pointer"
+                  >
+                    <Bookmark className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onOpenApplyModal('Frontend React & React Native Specialist', 'Bukalapak Commerce')}
+                    className="py-2 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-blue-600/20 transition-all cursor-pointer"
+                  >
+                    <Zap className="w-3.5 h-3.5" />
+                    <span>Lamar Cepat</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Row 2: Dana Sahabat Finansial */}
+              <div className="p-4 sm:p-5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:border-blue-300 dark:hover:border-blue-700 transition-all">
+                <div className="flex items-start sm:items-center gap-4">
+                  <div className="w-11 h-11 rounded-xl bg-sky-600 text-white font-black text-xs flex items-center justify-center shrink-0">
+                    DS
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-400">
+                        Baru
+                      </span>
+                      <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                        Junior Web Developer (Next.js & Supabase)
+                      </h4>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                      <span className="font-semibold text-slate-700 dark:text-slate-300">Dana Sahabat Finansial</span>
+                      <span>•</span>
+                      <span>Jakarta Pusat • Onsite</span>
+                      <span>•</span>
+                      <span className="font-extrabold text-blue-600 dark:text-blue-400">
+                        Rp 9.000.000 - Rp 13.000.000 / bln
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] text-slate-600 dark:text-slate-300">
+                        BPJS & Asuransi Jiwa
+                      </span>
+                      <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] text-slate-600 dark:text-slate-300">
+                        Anggaran Kursus & Sertifikasi
+                      </span>
+                      <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] text-slate-600 dark:text-slate-300">
+                        Makan Siang Gratis
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 text-slate-400 cursor-pointer"
+                  >
+                    <Bookmark className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onOpenApplyModal('Junior Web Developer (Next.js & Supabase)', 'Dana Sahabat Finansial')}
+                    className="py-2 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-blue-600/20 transition-all cursor-pointer"
+                  >
+                    <Zap className="w-3.5 h-3.5" />
+                    <span>Lamar Cepat</span>
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
