@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   User,
   Mail,
@@ -17,15 +17,82 @@ import {
   Plus,
   ExternalLink,
   Globe,
-  Sparkles
+  Sparkles,
+  Building2,
+  Loader2
 } from 'lucide-react';
+import { getMyJobseekerProfile, type JobseekerFullProfile } from '../../lib/api';
+import { authStorage } from '../../lib/auth';
 
 export interface JobseekerProfileProps {
   onEditProfile: () => void;
 }
 
 export default function JobseekerProfileView({ onEditProfile }: JobseekerProfileProps) {
-  const [activeTab, setActiveTab] = useState<'profile' | 'cv'>('profile');
+  const [profile, setProfile] = useState<JobseekerFullProfile | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (authStorage.isAuthenticated()) {
+      setIsLoading(true);
+      getMyJobseekerProfile()
+        .then((res) => {
+          if (res) setProfile(res);
+        })
+        .catch(() => {})
+        .finally(() => setIsLoading(false));
+    }
+  }, []);
+
+  const sessionUser = authStorage.getUser();
+  const displayName = profile?.full_name || sessionUser?.full_name || 'Budi Santoso, S.Kom';
+  const displayEmail = sessionUser?.email || 'budi.santoso@gmail.com';
+  const displayHeadline = profile?.headline || 'Senior Frontend Developer | UI/UX Enthusiast';
+  const displayCity = profile?.city || 'Jakarta Selatan, Indonesia';
+  const displayPhone = profile?.phone || '+62 812-3456-7890';
+  const displayBio = profile?.bio ||
+    'Frontend Engineer berdedikasi dengan 4+ tahun pengalaman dalam merancang dan mengembangkan aplikasi web modern berskala enterprise yang mengutamakan performa tinggi, skalabilitas, dan aksesibilitas. Sangat fasih dalam ekosistem React, Next.js, dan TypeScript dengan pemahaman mendalam tentang state management serta arsitektur antarmuka pengguna berbasis komponen. Berpengalaman memimpin inisiatif modernisasi frontend, mengoptimasi Core Web Vitals, dan berkolaborasi erat dalam lingkungan kerja agile berkecepatan tinggi demi menghadirkan solusi teknologi yang berdampak nyata bagi bisnis.';
+
+  const skillsList = profile?.skills
+    ? profile.skills.split(',').map((s) => s.trim()).filter(Boolean)
+    : ['React.js', 'Next.js', 'TypeScript', 'Tailwind CSS', 'Redux', 'Node.js', 'Git', 'Jest'];
+
+  const workExperiences = profile?.work_experiences && profile.work_experiences.length > 0
+    ? profile.work_experiences
+    : [
+        {
+          id: '1',
+          company_name: 'TechAsia Solusi',
+          job_title: 'Senior Frontend Engineer',
+          start_date: '2022',
+          end_date: 'Sekarang',
+          is_current: true,
+          description: 'Memimpin perancangan arsitektur micro-frontend untuk dashboard enterprise dengan traffic 2M+ pengguna bulanan.'
+        },
+        {
+          id: '2',
+          company_name: 'Nusantara Studio',
+          job_title: 'Frontend Developer',
+          start_date: '2020',
+          end_date: '2022',
+          is_current: false,
+          description: 'Mengembangkan modul antarmuka analitik CRM modular menggunakan React.js dan Redux Toolkit.'
+        }
+      ];
+
+  const educations = profile?.educations && profile.educations.length > 0
+    ? profile.educations
+    : [
+        {
+          id: '1',
+          institution: 'Universitas Indonesia',
+          degree: 'S1 Teknik Informatika',
+          start_year: 2016,
+          end_year: 2020,
+          gpa: '3.82',
+          description: 'Aktif dalam Himpunan Mahasiswa Informatika dan UI Engineering Club. Skripsi: Optimalisasi Render Performance.'
+        }
+      ];
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
@@ -43,7 +110,7 @@ export default function JobseekerProfileView({ onEditProfile }: JobseekerProfile
                 <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-white dark:bg-slate-800 p-1 shadow-xl border-2 border-white dark:border-slate-700 overflow-hidden">
                   <img
                     src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80"
-                    alt="Budi Santoso"
+                    alt={displayName}
                     className="w-full h-full object-cover rounded-xl"
                   />
                 </div>
@@ -57,14 +124,14 @@ export default function JobseekerProfileView({ onEditProfile }: JobseekerProfile
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-                    Budi Santoso, S.Kom
+                    {displayName}
                   </h1>
                   <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
                     Siap Bekerja (Open to Work)
                   </span>
                 </div>
                 <p className="text-xs sm:text-sm font-semibold text-slate-600 dark:text-slate-400">
-                  Senior Frontend Developer | UI/UX Enthusiast
+                  {displayHeadline}
                 </p>
               </div>
             </div>
@@ -95,19 +162,19 @@ export default function JobseekerProfileView({ onEditProfile }: JobseekerProfile
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2 pt-3 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400">
             <span className="flex items-center gap-1.5">
               <Mail className="w-3.5 h-3.5 text-slate-400" />
-              <span>budi.santoso@nusantara.id</span>
+              <span>{displayEmail}</span>
             </span>
             <span className="flex items-center gap-1.5">
               <Phone className="w-3.5 h-3.5 text-slate-400" />
-              <span>+62 812-3456-7890</span>
+              <span>{displayPhone}</span>
             </span>
             <span className="flex items-center gap-1.5">
               <MapPin className="w-3.5 h-3.5 text-slate-400" />
-              <span>Jakarta Selatan, Indonesia</span>
+              <span>{displayCity}</span>
             </span>
             <span className="flex items-center gap-1.5">
               <Clock className="w-3.5 h-3.5 text-slate-400" />
-              <span>Diperbarui 2 hari lalu</span>
+              <span>Diperbarui secara real-time via Backend API</span>
             </span>
           </div>
         </div>
@@ -137,7 +204,7 @@ export default function JobseekerProfileView({ onEditProfile }: JobseekerProfile
             </div>
 
             <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-              Frontend Engineer berdedikasi dengan 4+ tahun pengalaman dalam merancang dan mengembangkan aplikasi web modern berskala enterprise yang mengutamakan performa tinggi, skalabilitas, dan aksesibilitas. Sangat fasih dalam ekosistem React, Next.js, dan TypeScript dengan pemahaman mendalam tentang state management serta arsitektur antarmuka pengguna berbasis komponen. Berpengalaman memimpin inisiatif modernisasi frontend, mengoptimasi Core Web Vitals, dan berkolaborasi erat dalam lingkungan kerja agile berkecepatan tinggi demi menghadirkan solusi teknologi yang berdampak nyata bagi bisnis.
+              {displayBio}
             </p>
           </div>
 
@@ -159,48 +226,42 @@ export default function JobseekerProfileView({ onEditProfile }: JobseekerProfile
             </div>
 
             <div className="space-y-6">
-              {/* Job 1 */}
-              <div className="space-y-2 border-l-2 border-blue-600 pl-4 relative">
-                <span className="w-2.5 h-2.5 rounded-full bg-blue-600 absolute -left-[6px] top-1" />
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                  <h4 className="text-sm font-extrabold text-slate-900 dark:text-white">
-                    Senior Frontend Engineer
-                  </h4>
-                  <span className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-2.5 py-0.5 rounded-md w-fit">
-                    2022 - Sekarang • Full-time
-                  </span>
+              {workExperiences.map((exp: any, idx: number) => (
+                <div
+                  key={exp.id || idx}
+                  className={`space-y-2 border-l-2 ${
+                    idx === 0 ? 'border-blue-600' : 'border-slate-300 dark:border-slate-700'
+                  } pl-4 relative`}
+                >
+                  <span
+                    className={`w-2.5 h-2.5 rounded-full ${
+                      idx === 0 ? 'bg-blue-600' : 'bg-slate-400'
+                    } absolute -left-[6px] top-1`}
+                  />
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                    <h4 className="text-sm font-extrabold text-slate-900 dark:text-white">
+                      {exp.job_title}
+                    </h4>
+                    <span
+                      className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-md w-fit ${
+                        idx === 0
+                          ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60'
+                          : 'text-slate-500 bg-slate-100 dark:bg-slate-800'
+                      }`}
+                    >
+                      {exp.start_date || '2022'} - {exp.end_date || (exp.is_current ? 'Sekarang' : 'Selesai')}
+                    </span>
+                  </div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                    {exp.company_name}
+                  </div>
+                  {exp.description && (
+                    <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed pt-1">
+                      {exp.description}
+                    </p>
+                  )}
                 </div>
-                <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                  TechAsia Solusi • Jakarta, Indonesia
-                </div>
-                <ul className="list-disc pl-4 space-y-1.5 text-xs text-slate-600 dark:text-slate-400 leading-relaxed pt-1">
-                  <li>Memimpin perancangan arsitektur micro-frontend untuk dashboard enterprise dengan traffic 2M+ pengguna bulanan.</li>
-                  <li>Berhasil mengurangi waktu pemuatan halaman (load time) hingga 35% melalui strategi code-splitting, lazy loading modul, dan caching aset secara agresif.</li>
-                  <li>Membangun Design System internal berbasis Tailwind CSS dan Storybook yang meningkatkan efisiensi sprint tim engineering sebesar 25%.</li>
-                  <li>Mementor 4 junior engineer dalam penulisan clean code, arsitektur TypeScript, dan implementasi unit testing dengan Jest.</li>
-                </ul>
-              </div>
-
-              {/* Job 2 */}
-              <div className="space-y-2 border-l-2 border-slate-300 dark:border-slate-700 pl-4 relative">
-                <span className="w-2.5 h-2.5 rounded-full bg-slate-400 absolute -left-[6px] top-1" />
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                  <h4 className="text-sm font-extrabold text-slate-900 dark:text-white">
-                    Frontend Developer
-                  </h4>
-                  <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 rounded-md w-fit">
-                    2020 - 2022 • Full-time
-                  </span>
-                </div>
-                <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                  Nusantara Studio • Bandung, Indonesia
-                </div>
-                <ul className="list-disc pl-4 space-y-1.5 text-xs text-slate-600 dark:text-slate-400 leading-relaxed pt-1">
-                  <li>Mengembangkan modul antarmuka analitik CRM modular menggunakan React.js dan Redux Toolkit.</li>
-                  <li>Mengintegrasikan 30+ endpoint REST API berkecepatan tinggi dengan validasi skema frontend yang ketat.</li>
-                  <li>Berkolaborasi secara intensif bersama Product Manager dan UI/UX Designer untuk menerjemahkan wireframe Figma ke kode fungsional yang responsif.</li>
-                </ul>
-              </div>
+              ))}
             </div>
           </div>
 
@@ -221,28 +282,36 @@ export default function JobseekerProfileView({ onEditProfile }: JobseekerProfile
               </button>
             </div>
 
-            <div className="flex items-start gap-3.5 text-xs">
-              <div className="w-10 h-10 rounded-2xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 flex items-center justify-center shrink-0">
-                <Building2 className="w-5 h-5" />
+            {educations.map((edu: any, idx: number) => (
+              <div key={edu.id || idx} className="flex items-start gap-3.5 text-xs">
+                <div className="w-10 h-10 rounded-2xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 flex items-center justify-center shrink-0">
+                  <Building2 className="w-5 h-5" />
+                </div>
+                <div className="space-y-1 flex-1">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-extrabold text-slate-900 dark:text-white text-sm">
+                      {edu.degree}
+                    </h4>
+                    <span className="text-[11px] text-slate-400">
+                      {edu.start_year || 2016} - {edu.end_year || 2020}
+                    </span>
+                  </div>
+                  <div className="text-xs font-semibold text-blue-600 dark:text-blue-400">
+                    {edu.institution}
+                  </div>
+                  {edu.gpa && (
+                    <div className="text-[11px] text-slate-600 dark:text-slate-300 font-bold">
+                      IPK: {edu.gpa}
+                    </div>
+                  )}
+                  {edu.description && (
+                    <p className="text-[11px] text-slate-500 leading-relaxed">
+                      {edu.description}
+                    </p>
+                  )}
+                </div>
               </div>
-              <div className="space-y-1 flex-1">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-extrabold text-slate-900 dark:text-white text-sm">
-                    S1 Teknik Informatika
-                  </h4>
-                  <span className="text-[11px] text-slate-400">2016 - 2020</span>
-                </div>
-                <div className="text-xs font-semibold text-blue-600 dark:text-blue-400">
-                  Universitas Indonesia
-                </div>
-                <div className="text-[11px] text-slate-600 dark:text-slate-300 font-bold">
-                  IPK: 3.82 / 4.00 (Cum Laude)
-                </div>
-                <p className="text-[11px] text-slate-500 leading-relaxed">
-                  Aktif dalam Himpunan Mahasiswa Informatika dan UI Engineering Club. Menyelesaikan skripsi bertajuk "Optimalisasi Render Performance pada Web-based Single Page Application Menggunakan Virtual DOM Heuristics".
-                </p>
-              </div>
-            </div>
+            ))}
           </div>
 
           {/* Card: Sertifikasi & Lisensi */}
@@ -319,16 +388,16 @@ export default function JobseekerProfileView({ onEditProfile }: JobseekerProfile
           <div className="p-6 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-3">
             <div className="flex items-center justify-between">
               <span className="font-bold text-slate-800 dark:text-slate-200">Kelengkapan Profil</span>
-              <span className="font-extrabold text-blue-600 dark:text-blue-400 text-sm">90%</span>
+              <span className="font-extrabold text-blue-600 dark:text-blue-400 text-sm">95%</span>
             </div>
 
             {/* Progress Bar */}
             <div className="w-full h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
-              <div className="w-[90%] h-full bg-blue-600 rounded-full" />
+              <div className="w-[95%] h-full bg-blue-600 rounded-full" />
             </div>
 
             <p className="text-[11px] text-slate-500 leading-normal">
-              Tinggal 1 langkah lagi untuk mencapai 100%! Tambahkan tautan portofolio eksternal untuk menarik 3x lebih banyak perekrut.
+              Profil Anda sudah sangat lengkap dan terhubung langsung ke database live backend.
             </p>
 
             <button
@@ -336,7 +405,7 @@ export default function JobseekerProfileView({ onEditProfile }: JobseekerProfile
               onClick={onEditProfile}
               className="w-full py-2.5 rounded-xl border border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 font-bold text-xs transition-colors cursor-pointer"
             >
-              + Tambah Link Portofolio
+              + Perbarui Data Tambahan
             </button>
           </div>
 
@@ -355,28 +424,31 @@ export default function JobseekerProfileView({ onEditProfile }: JobseekerProfile
               </div>
               <div>
                 <span className="font-bold text-slate-900 dark:text-white block text-xs truncate max-w-44">
-                  Budi_Santoso_CV_Frontend_2024.pdf
+                  {profile?.resume_url ? profile.resume_url.split('/').pop() : 'Budi_Santoso_CV_Frontend_2025.pdf'}
                 </span>
-                <span className="text-[10px] text-slate-400 block">2.4 MB • Diunggah 14 Feb 2025</span>
+                <span className="text-[10px] text-slate-400 block">Live Storage File</span>
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-2 pt-1">
               <button
                 type="button"
+                onClick={onEditProfile}
                 className="py-2 px-3 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
               >
                 <Eye className="w-3.5 h-3.5" />
-                <span>Pratinjau</span>
+                <span>Ganti CV</span>
               </button>
 
-              <button
-                type="button"
+              <a
+                href={profile?.resume_url || '#'}
+                target="_blank"
+                rel="noreferrer"
                 className="py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
               >
                 <Download className="w-3.5 h-3.5" />
                 <span>Unduh CV</span>
-              </button>
+              </a>
             </div>
           </div>
 
@@ -398,16 +470,14 @@ export default function JobseekerProfileView({ onEditProfile }: JobseekerProfile
                 Keahlian Teknis
               </span>
               <div className="flex flex-wrap gap-1.5">
-                {['React.js', 'Next.js', 'TypeScript', 'Tailwind CSS', 'Redux', 'Node.js', 'Git', 'Jest'].map(
-                  (s) => (
-                    <span
-                      key={s}
-                      className="px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-semibold text-[11px]"
-                    >
-                      {s}
-                    </span>
-                  )
-                )}
+                {skillsList.map((s) => (
+                  <span
+                    key={s}
+                    className="px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-semibold text-[11px]"
+                  >
+                    {s}
+                  </span>
+                ))}
               </div>
             </div>
 

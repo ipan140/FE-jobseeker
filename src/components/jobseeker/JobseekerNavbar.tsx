@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Briefcase,
   Bell,
@@ -8,9 +8,21 @@ import {
   PawPrint,
   ArrowRightLeft,
   LogIn,
-  UserPlus
+  UserPlus,
+  CheckCheck,
+  CheckCircle2,
+  AlertCircle,
+  ExternalLink,
+  X
 } from 'lucide-react';
 import { authStorage } from '../../lib/auth';
+import {
+  getMyNotifications,
+  getUnreadNotificationCount,
+  markAllNotificationsRead,
+  markNotificationRead,
+  type InAppNotification
+} from '../../lib/api';
 
 export interface JobseekerNavbarProps {
   activeTab: 'dashboard' | 'explore' | 'job-detail' | 'applications' | 'profile' | 'profile-edit' | 'zen';
@@ -33,6 +45,72 @@ export default function JobseekerNavbar({
   onOpenAuthModal,
   onLogout,
 }: JobseekerNavbarProps) {
+  const [unreadCount, setUnreadCount] = useState<number>(0);
+  const [notifications, setNotifications] = useState<InAppNotification[]>([]);
+  const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const [isLoadingNotifs, setIsLoadingNotifs] = useState(false);
+  const notifDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Load unread count and notifications if authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      getUnreadNotificationCount().then((count) => setUnreadCount(count)).catch(() => {});
+    }
+  }, [isAuthenticated]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (notifDropdownRef.current && !notifDropdownRef.current.contains(event.target as Node)) {
+        setIsNotifOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleToggleNotifications = async () => {
+    const nextState = !isNotifOpen;
+    setIsNotifOpen(nextState);
+    if (nextState && isAuthenticated) {
+      setIsLoadingNotifs(true);
+      try {
+        const notifs = await getMyNotifications(20);
+        setNotifications(notifs);
+        const count = await getUnreadNotificationCount();
+        setUnreadCount(count);
+      } catch (err) {
+        console.error('Failed to load notifications', err);
+      } finally {
+        setIsLoadingNotifs(false);
+      }
+    }
+  };
+
+  const handleMarkAllRead = async () => {
+    await markAllNotificationsRead();
+    setUnreadCount(0);
+    setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+  };
+
+  const handleNotificationClick = async (notif: InAppNotification) => {
+    if (!notif.is_read) {
+      await markNotificationRead(notif.id);
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === notif.id ? { ...n, is_read: true } : n))
+      );
+      setUnreadCount((prev) => Math.max(0, prev - 1));
+    }
+    if (notif.link_url) {
+      setIsNotifOpen(false);
+      if (notif.link_url.includes('applications')) {
+        onSelectTab('applications');
+      } else if (notif.link_url.includes('jobs')) {
+        onSelectTab('explore');
+      }
+    }
+  };
+
   const handleLogout = () => {
     authStorage.clearSession();
     if (onLogout) {
@@ -185,14 +263,126 @@ export default function JobseekerNavbar({
           ) : (
             /* If Authenticated: Show Notification Bell, User Pill, and Logout */
             <>
-              {/* Bell Icon */}
-              <button
-                type="button"
-                className="p-2 rounded-xl text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors relative cursor-pointer"
-              >
-                <Bell className="w-4.5 h-4.5" />
-                <span className="w-2 h-2 rounded-full bg-red-500 absolute top-2 right-2 ring-2 ring-white dark:ring-slate-900" />
-              </button>
+              {/* Bell Icon & Notification Dropdown */}
+              <div className="relative" ref={notifDropdownRef}>
+                <button
+                  type="button"
+                  onClick={handleToggleNotifications}
+                  className="p-2 rounded-xl text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors relative cursor-pointer"
+                  title="Notifikasi"
+                >
+                  <Bell className="w-4.5 h-4.5" />
+                  {unreadCount > 0 && (
+                    <span className="min-w-4 h-4 px-1 rounded-full bg-red-500 text-white text-[9px] font-black flex items-center justify-center absolute -top-0.5 -right-0.5 ring-2 ring-white dark:ring-slate-900 animate-pulse">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  )}
+                </button>
+
+                {/* Dropdown Popover */}
+                {isNotifOpen && (
+                  <div className="absolute right-0 mt-3 w-80 sm:w-96 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
+                    <div className="p-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/40">
+                      <div className="flex items-center gap-2">
+                        <span className="font-extrabold text-sm text-slate-900 dark:text-white">Notifikasi</span>
+                        {unreadCount > 0 && (
+                          <span className="px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 text-[10px] font-black">
+                            {unreadCount} baru
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {unreadCount > 0 && (
+                          <button
+                            type="button"
+                            onClick={handleMarkAllRead}
+                            className="text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 cursor-pointer"
+                          >
+                            <CheckCheck className="w-3.5 h-3.5" />
+                            <span>Tandai Semua</span>
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setIsNotifOpen(false)}
+                          className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="max-h-80 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/60">
+                      {isLoadingNotifs ? (
+                        <div className="p-6 text-center text-xs text-slate-400">
+                          <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                          Memuat notifikasi...
+                        </div>
+                      ) : notifications.length === 0 ? (
+                        <div className="p-8 text-center text-slate-400">
+                          <Bell className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                          <p className="text-xs font-semibold">Belum ada notifikasi</p>
+                          <p className="text-[11px] text-slate-400 mt-0.5">Semua info terbaru lowongan akan muncul di sini.</p>
+                        </div>
+                      ) : (
+                        notifications.map((notif) => (
+                          <div
+                            key={notif.id}
+                            onClick={() => handleNotificationClick(notif)}
+                            className={`p-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors cursor-pointer flex gap-3 ${
+                              !notif.is_read ? 'bg-blue-50/40 dark:bg-blue-950/20' : ''
+                            }`}
+                          >
+                            <div className="mt-0.5 shrink-0">
+                              <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
+                                !notif.is_read
+                                  ? 'bg-blue-600 text-white shadow-xs'
+                                  : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
+                              }`}>
+                                <Bell className="w-4 h-4" />
+                              </div>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between gap-2">
+                                <h4 className={`text-xs truncate ${!notif.is_read ? 'font-black text-slate-900 dark:text-white' : 'font-semibold text-slate-700 dark:text-slate-300'}`}>
+                                  {notif.title}
+                                </h4>
+                                {!notif.is_read && (
+                                  <span className="w-2 h-2 rounded-full bg-blue-600 shrink-0" />
+                                )}
+                              </div>
+                              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-2">
+                                {notif.message}
+                              </p>
+                              <div className="flex items-center justify-between mt-1.5 text-[10px] text-slate-400">
+                                <span>{new Date(notif.created_at).toLocaleDateString('id-ID', { hour: '2-digit', minute: '2-digit' })}</span>
+                                {notif.link_url && (
+                                  <span className="flex items-center gap-0.5 text-blue-600 dark:text-blue-400 font-bold">
+                                    Buka <ExternalLink className="w-2.5 h-2.5" />
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+
+                    <div className="p-2 border-t border-slate-100 dark:border-slate-800 text-center bg-slate-50/50 dark:bg-slate-800/30">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsNotifOpen(false);
+                          onSelectTab('applications');
+                        }}
+                        className="text-[11px] font-bold text-slate-600 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer"
+                      >
+                        Lihat Status Semua Lamaran →
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {/* User Profile Pill */}
               <div

@@ -528,6 +528,23 @@ export async function markAllNotificationsRead(): Promise<boolean> {
   }
 }
 
+export async function markNotificationRead(notificationId: string): Promise<boolean> {
+  const token = authStorage.getToken();
+  if (!token) return false;
+
+  try {
+    const res = await fetch(`${API_BASE}/notifications/${notificationId}/read`, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 // ==========================================================
 // 5. REGISTRATION ENDPOINTS
 // ==========================================================
@@ -597,4 +614,660 @@ export async function getSystemStats(): Promise<AdminStats | null> {
   } catch {
     return null;
   }
+}
+
+export interface PendingCompanyItem {
+  id: string;
+  user_id: string;
+  email?: string;
+  company_name: string;
+  industry?: string;
+  website?: string;
+  address?: string;
+  status: string;
+  created_at: string;
+}
+
+export async function getPendingCompanies(): Promise<PendingCompanyItem[]> {
+  const token = authStorage.getToken();
+  if (!token) return [];
+
+  try {
+    const res = await fetch(`${API_BASE}/admin/companies/pending`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (!res.ok) return [];
+    return await res.json();
+  } catch {
+    return [];
+  }
+}
+
+export async function verifyCompany(
+  companyId: string,
+  status: 'approved' | 'rejected',
+  rejectionReason?: string
+): Promise<any> {
+  const token = authStorage.getToken();
+  if (!token) throw new Error('Harap login sebagai Administrator.');
+
+  const res = await fetch(`${API_BASE}/companies/${companyId}/verify`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ status, rejection_reason: rejectionReason }),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.detail || 'Gagal memverifikasi perusahaan');
+  }
+  return data;
+}
+
+export interface JobReportItem {
+  id: string;
+  job_id: string;
+  job_title?: string;
+  company_name?: string;
+  reporter_email?: string;
+  reason: string;
+  description: string;
+  status: string;
+  created_at: string;
+}
+
+export async function getJobReports(statusFilter = 'pending', page = 1, limit = 10): Promise<{
+  items: JobReportItem[];
+  total_items: number;
+  total_pages: number;
+  page: number;
+  limit: number;
+}> {
+  const token = authStorage.getToken();
+  if (!token) {
+    return { items: [], total_items: 0, total_pages: 0, page: 1, limit };
+  }
+
+  try {
+    const res = await fetch(
+      `${API_BASE}/admin/reports?status_filter=${statusFilter}&page=${page}&limit=${limit}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+    if (!res.ok) return { items: [], total_items: 0, total_pages: 0, page: 1, limit };
+    return await res.json();
+  } catch {
+    return { items: [], total_items: 0, total_pages: 0, page: 1, limit };
+  }
+}
+
+export async function resolveJobReport(reportId: string, resolutionStatus = 'resolved'): Promise<any> {
+  const token = authStorage.getToken();
+  if (!token) throw new Error('Harap login sebagai Administrator.');
+
+  const res = await fetch(
+    `${API_BASE}/admin/reports/${reportId}/resolve?resolution_status=${resolutionStatus}`,
+    {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.detail || 'Gagal menyelesaikan laporan penipuan.');
+  }
+  return data;
+}
+
+// ==========================================================
+// 7. MERCHANT / COMPANY DASHBOARD ENDPOINTS
+// ==========================================================
+
+export interface CompanyMeProfile {
+  id: string;
+  user_id: string;
+  company_name: string;
+  industry?: string;
+  company_size?: string;
+  description?: string;
+  city?: string;
+  address?: string;
+  website?: string;
+  logo_url?: string;
+  banner_url?: string;
+  status: string;
+  rating?: number;
+  reviews_count?: number;
+}
+
+export interface CompanyAnalyticsResponse {
+  total_jobs: number;
+  active_jobs: number;
+  total_applications: number;
+  total_views: number;
+  conversion_rate: number;
+  pipeline_funnel: {
+    applied: number;
+    screening: number;
+    interview: number;
+    offered: number;
+    accepted: number;
+    rejected: number;
+  };
+}
+
+export async function getMyCompany(): Promise<CompanyMeProfile> {
+  const token = authStorage.getToken();
+  if (!token) throw new Error('Harap masuk sebagai Perusahaan.');
+
+  const res = await fetch(`${API_BASE}/companies/me`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Gagal mengambil profil perusahaan.');
+  }
+  return await res.json();
+}
+
+export async function updateMyCompany(payload: Partial<CompanyMeProfile>): Promise<CompanyMeProfile> {
+  const token = authStorage.getToken();
+  if (!token) throw new Error('Harap masuk sebagai Perusahaan.');
+
+  const res = await fetch(`${API_BASE}/companies/me`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Gagal memperbarui profil perusahaan.');
+  }
+  return await res.json();
+}
+
+export async function getMyCompanyAnalytics(): Promise<CompanyAnalyticsResponse> {
+  const token = authStorage.getToken();
+  if (!token) throw new Error('Harap masuk sebagai Perusahaan.');
+
+  const res = await fetch(`${API_BASE}/companies/me/analytics`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Gagal memuat analitik rekrutmen perusahaan.');
+  }
+  return await res.json();
+}
+
+export async function getMyCompanyJobs(page = 1, limit = 10): Promise<PaginatedJobsResponse> {
+  const token = authStorage.getToken();
+  if (!token) throw new Error('Harap masuk sebagai Perusahaan.');
+
+  const res = await fetch(`${API_BASE}/jobs/my?page=${page}&limit=${limit}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Gagal memuat lowongan perusahaan.');
+  }
+  return await res.json();
+}
+
+export async function deleteJob(jobId: string): Promise<boolean> {
+  const token = authStorage.getToken();
+  if (!token) throw new Error('Harap masuk sebagai Perusahaan.');
+
+  const res = await fetch(`${API_BASE}/jobs/${jobId}`, {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  return res.ok;
+}
+
+// ==========================================================
+// 8. AI GENERATE JOB DESCRIPTION (Swagger: /jobs/generate-description)
+// ==========================================================
+
+export interface AiJobDescResponse {
+  description: string;
+  requirements: string;
+  recommended_skills: string[];
+}
+
+export async function generateAiJobDescription(payload: {
+  title: string;
+  category?: string;
+  experience_level?: string;
+}): Promise<AiJobDescResponse> {
+  const token = authStorage.getToken();
+  const headers: HeadersInit = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const res = await fetch(`${API_BASE}/jobs/generate-description`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Gagal menghasilkan deskripsi AI.');
+  }
+  return await res.json();
+}
+
+// ==========================================================
+// 9. META MASTER DATA & DYNAMIC FILTER OPTIONS
+// ==========================================================
+
+export interface DynamicFilterOptions {
+  categories: string[];
+  locations: string[];
+  job_types: { value: string; label: string }[];
+  workplace_types: { value: string; label: string }[];
+  experience_levels: { value: string; label: string }[];
+  salary_range: { min: number; max: number };
+}
+
+export async function getFilterOptions(): Promise<DynamicFilterOptions | null> {
+  try {
+    const res = await fetch(`${API_BASE}/meta/filter-options`);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+export async function getMetaCategories(): Promise<any[]> {
+  try {
+    const res = await fetch(`${API_BASE}/meta/categories`);
+    if (!res.ok) return [];
+    return await res.json();
+  } catch {
+    return [];
+  }
+}
+
+export async function getMetaFaqs(): Promise<any[]> {
+  try {
+    const res = await fetch(`${API_BASE}/meta/faqs`);
+    if (!res.ok) return [];
+    return await res.json();
+  } catch {
+    return [];
+  }
+}
+
+// ==========================================================
+// 10. REVIEWS & COMPANY DETAILS (ALA GLASSDOOR)
+// ==========================================================
+
+export interface CompanyReviewItem {
+  id: string;
+  company_id: string;
+  rating: number;
+  title: string;
+  pros: string;
+  cons: string;
+  job_title?: string;
+  is_current_employee?: boolean;
+  created_at: string;
+}
+
+export async function getCompanyDetail(companyId: string): Promise<CompanyMeProfile> {
+  const res = await fetch(`${API_BASE}/companies/${companyId}`);
+  if (!res.ok) {
+    throw new Error('Perusahaan tidak ditemukan');
+  }
+  return await res.json();
+}
+
+export async function getCompanyReviews(companyId: string): Promise<CompanyReviewItem[]> {
+  try {
+    const res = await fetch(`${API_BASE}/companies/${companyId}/reviews`);
+    if (!res.ok) return [];
+    return await res.json();
+  } catch {
+    return [];
+  }
+}
+
+export async function addCompanyReview(
+  companyId: string,
+  payload: { rating: number; title: string; pros: string; cons: string; job_title?: string; is_current_employee?: boolean }
+): Promise<CompanyReviewItem> {
+  const token = authStorage.getToken();
+  if (!token) throw new Error('Harap masuk terlebih dahulu untuk memberi ulasan.');
+
+  const res = await fetch(`${API_BASE}/companies/${companyId}/reviews`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.detail || 'Gagal mengirimkan ulasan.');
+  }
+  return data;
+}
+
+export async function toggleFollowCompany(companyId: string): Promise<{ is_following: boolean; message: string }> {
+  const token = authStorage.getToken();
+  if (!token) throw new Error('Harap masuk terlebih dahulu.');
+
+  const res = await fetch(`${API_BASE}/companies/${companyId}/follow`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Gagal mengubah status ikuti.');
+  }
+  return await res.json();
+}
+
+// ==========================================================
+// 11. JOB ALERTS & ANTI-SCAM REPORTING
+// ==========================================================
+
+export interface JobAlertItem {
+  id: string;
+  keyword?: string;
+  category?: string;
+  location?: string;
+  frequency: 'daily' | 'weekly';
+  is_active: boolean;
+}
+
+export async function getJobAlerts(): Promise<JobAlertItem[]> {
+  const token = authStorage.getToken();
+  if (!token) return [];
+
+  try {
+    const res = await fetch(`${API_BASE}/jobs/alerts`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return [];
+    return await res.json();
+  } catch {
+    return [];
+  }
+}
+
+export async function createJobAlert(payload: {
+  keyword?: string;
+  category?: string;
+  location?: string;
+  frequency?: 'daily' | 'weekly';
+}): Promise<JobAlertItem> {
+  const token = authStorage.getToken();
+  if (!token) throw new Error('Harap masuk terlebih dahulu.');
+
+  const res = await fetch(`${API_BASE}/jobs/alerts`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.detail || 'Gagal membuat notifikasi lowongan.');
+  return data;
+}
+
+export async function reportJob(
+  jobId: string,
+  payload: { reason: string; description: string }
+): Promise<any> {
+  const token = authStorage.getToken();
+  const headers: HeadersInit = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const res = await fetch(`${API_BASE}/jobs/${jobId}/report`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(payload),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.detail || 'Gagal mengirim laporan.');
+  return data;
+}
+
+// ==========================================================
+// 12. ATS PIPELINE PER JOB (Khusus Perusahaan)
+// ==========================================================
+
+export interface AtsPipelineResponse {
+  job_id: string;
+  job_title: string;
+  stages: {
+    applied: BackendApplicationItem[];
+    screening: BackendApplicationItem[];
+    interview: BackendApplicationItem[];
+    offered: BackendApplicationItem[];
+    accepted: BackendApplicationItem[];
+    rejected: BackendApplicationItem[];
+  };
+}
+
+export async function getJobAtsPipeline(jobId: string): Promise<AtsPipelineResponse> {
+  const token = authStorage.getToken();
+  if (!token) throw new Error('Harap masuk sebagai Perusahaan.');
+
+  const res = await fetch(`${API_BASE}/applicants/jobs/${jobId}/pipeline`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Gagal memuat pipeline ATS lowongan.');
+  }
+  return await res.json();
+}
+
+// ==========================================================
+// 13. ASSESSMENTS / SKILL TEST (Swagger: /assessments)
+// ==========================================================
+
+export interface AssessmentItem {
+  id: string;
+  title: string;
+  category: string;
+  description: string;
+  duration_minutes: number;
+  passing_score: number;
+  badge_reward?: string;
+  questions_count?: number;
+}
+
+export interface QuestionPublicItem {
+  id: string;
+  question_text: string;
+  options: string[];
+}
+
+export interface AssessmentDetailItem extends AssessmentItem {
+  questions: QuestionPublicItem[];
+}
+
+export interface AssessmentResultItem {
+  id: string;
+  assessment_id: string;
+  assessment_title: string;
+  score: number;
+  is_passed: boolean;
+  badge?: string;
+  completed_at: string;
+  total_questions: number;
+  correct_answers_count: number;
+}
+
+export async function getAssessments(): Promise<AssessmentItem[]> {
+  try {
+    const res = await fetch(`${API_BASE}/assessments/`);
+    if (!res.ok) return [];
+    return await res.json();
+  } catch {
+    return [];
+  }
+}
+
+export async function getAssessmentDetail(assessmentId: string): Promise<AssessmentDetailItem | null> {
+  try {
+    const res = await fetch(`${API_BASE}/assessments/${assessmentId}`);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+export async function submitAssessment(
+  assessmentId: string,
+  answers: { question_id: string; selected_option_index: number }[]
+): Promise<AssessmentResultItem> {
+  const token = authStorage.getToken();
+  if (!token) throw new Error('Harap masuk terlebih dahulu untuk mengikuti tes.');
+
+  const res = await fetch(`${API_BASE}/assessments/${assessmentId}/submit`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ answers }),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.detail || 'Gagal mengirimkan jawaban tes.');
+  }
+  return data;
+}
+
+export async function getMyAssessmentResults(): Promise<AssessmentResultItem[]> {
+  const token = authStorage.getToken();
+  if (!token) return [];
+
+  try {
+    const res = await fetch(`${API_BASE}/assessments/me/results`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return [];
+    return await res.json();
+  } catch {
+    return [];
+  }
+}
+
+// ==========================================================
+// 14. CHAT & MESSAGING (Swagger: /chat)
+// ==========================================================
+
+export interface ChatMessageItem {
+  id: string;
+  sender_id: string;
+  sender_name?: string;
+  message: string;
+  created_at: string;
+}
+
+export interface ChatConversationItem {
+  id: string;
+  job_id?: string;
+  job_title?: string;
+  partner_id: string;
+  partner_name: string;
+  partner_avatar?: string;
+  last_message?: string;
+  last_message_at?: string;
+}
+
+export async function getChatConversations(): Promise<ChatConversationItem[]> {
+  const token = authStorage.getToken();
+  if (!token) return [];
+
+  try {
+    const res = await fetch(`${API_BASE}/chat/conversations`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return [];
+    return await res.json();
+  } catch {
+    return [];
+  }
+}
+
+export async function getChatMessages(conversationId: string): Promise<ChatMessageItem[]> {
+  const token = authStorage.getToken();
+  if (!token) return [];
+
+  try {
+    const res = await fetch(`${API_BASE}/chat/conversations/${conversationId}/messages`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return [];
+    return await res.json();
+  } catch {
+    return [];
+  }
+}
+
+export async function sendChatMessage(conversationId: string, message: string): Promise<ChatMessageItem> {
+  const token = authStorage.getToken();
+  if (!token) throw new Error('Harap masuk terlebih dahulu.');
+
+  const res = await fetch(`${API_BASE}/chat/conversations/${conversationId}/messages`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ message }),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.detail || 'Gagal mengirim pesan.');
+  return data;
 }

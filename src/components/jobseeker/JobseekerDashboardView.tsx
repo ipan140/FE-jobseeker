@@ -23,6 +23,7 @@ import {
   type BackendJobItem,
   type BackendApplicationItem
 } from '../../lib/api';
+import SkillAssessmentModal from './SkillAssessmentModal';
 
 export interface JobseekerDashboardProps {
   onSelectJob: (jobTitle: string, company: string, jobId?: string) => void;
@@ -56,6 +57,7 @@ export default function JobseekerDashboardView({
   const [applicationsCount, setApplicationsCount] = useState<number>(4);
   const [interviewCount, setInterviewCount] = useState<number>(1);
   const [offeredCount, setOfferedCount] = useState<number>(0);
+  const [isAssessmentModalOpen, setIsAssessmentModalOpen] = useState<boolean>(false);
 
   useEffect(() => {
     getJobs({ page: 1, limit: 6 })
@@ -802,6 +804,38 @@ export default function JobseekerDashboardView({
         </div>
       </div>
 
+      {/* Uji Kompetensi & Sertifikasi Skill Banner (FastAPI Powered) */}
+      <div className="p-6 rounded-3xl bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white border border-blue-800 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+        <div className="flex items-center gap-4">
+          <div className="w-14 h-14 rounded-2xl bg-amber-500/20 border border-amber-400/30 flex items-center justify-center shrink-0">
+            <Award className="w-7 h-7 text-amber-400" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/30 text-amber-300 border border-amber-400/30">
+                Lencana Sertifikasi Terstandarisasi
+              </span>
+              <span className="text-[11px] text-blue-200">FastAPI Verified Quiz</span>
+            </div>
+            <h3 className="text-base sm:text-lg font-black tracking-tight">
+              Tingkatkan Peluang Diterima Kerja dengan Tes Sertifikasi Skill! 🏆
+            </h3>
+            <p className="text-xs text-blue-100/80 mt-0.5">
+              Ikuti tes kompetensi teknis Python/FastAPI, UI/UX Design, dan System Design. Lencana otomatis terpasang di profil Anda.
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setIsAssessmentModalOpen(true)}
+          className="py-3 px-6 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-xs shadow-lg shadow-amber-500/30 flex items-center justify-center gap-2 shrink-0 transition-all cursor-pointer hover:scale-105"
+        >
+          <Award className="w-4 h-4" />
+          <span>Ikuti Tes Keahlian</span>
+        </button>
+      </div>
+
       {/* Combined Feature: Zen Wellness Banner (Combining Image 5 seamlessly!) */}
       <div className="p-6 rounded-3xl bg-gradient-to-r from-[#0f172a] via-[#1e293b] to-[#0f172a] text-white border border-slate-800 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-6">
         <div className="flex items-center gap-4">
@@ -850,6 +884,14 @@ export default function JobseekerDashboardView({
           <a href="#terms" className="hover:text-blue-600 transition-colors">Syarat & Ketentuan</a>
         </div>
       </footer>
+
+      {/* Skill Assessment Modal */}
+      <SkillAssessmentModal
+        isOpen={isAssessmentModalOpen}
+        onClose={() => setIsAssessmentModalOpen(false)}
+        isAuthenticated={isAuthenticated}
+        onOpenAuthModal={onOpenAuthModal}
+      />
     </div>
   );
 }

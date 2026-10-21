@@ -30,6 +30,7 @@ import {
   getMyApplications,
   getSystemStats,
   createJob,
+  generateAiJobDescription,
   type BackendJobItem,
   type CreateJobPayload
 } from '../../lib/api';
@@ -215,6 +216,7 @@ export default function DashboardMatrix({
 
   // Form for New Job Modal
   const [isCreatingJob, setIsCreatingJob] = useState(false);
+  const [isGeneratingAi, setIsGeneratingAi] = useState(false);
   const [createJobForm, setCreateJobForm] = useState<CreateJobPayload>({
     title: '',
     category: 'Information Technology',
@@ -228,6 +230,31 @@ export default function DashboardMatrix({
     salary_max: 25000000,
     skills_required: 'Python, FastAPI, React, PostgreSQL',
   });
+
+  const handleAiGenerate = async () => {
+    if (!createJobForm.title.trim()) {
+      alert('Harap ketik judul posisi terlebih dahulu sebelum men-generate deskripsi AI.');
+      return;
+    }
+    setIsGeneratingAi(true);
+    try {
+      const aiData = await generateAiJobDescription({
+        title: createJobForm.title,
+        category: createJobForm.category,
+        experience_level: createJobForm.experience_level,
+      });
+      setCreateJobForm((prev) => ({
+        ...prev,
+        description: aiData.description || prev.description,
+        requirements: aiData.requirements || prev.requirements,
+        skills_required: aiData.recommended_skills ? aiData.recommended_skills.join(', ') : prev.skills_required,
+      }));
+    } catch (err: any) {
+      alert(err.message || 'Gagal menghasilkan konten AI.');
+    } finally {
+      setIsGeneratingAi(false);
+    }
+  };
 
   useEffect(() => {
     // Fetch live backend metrics & jobs
@@ -1223,9 +1250,24 @@ export default function DashboardMatrix({
 
             <form onSubmit={handleCreateJobSubmit} className="my-4 space-y-3.5 text-xs">
               <div>
-                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Judul Lowongan Pekerjaan *
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="font-semibold text-slate-700 dark:text-slate-300">
+                    Judul Lowongan Pekerjaan *
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleAiGenerate}
+                    disabled={isGeneratingAi || !createJobForm.title.trim()}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-[10px] shadow-sm disabled:opacity-40 cursor-pointer"
+                  >
+                    {isGeneratingAi ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <Sparkles className="w-3 h-3 text-amber-300" />
+                    )}
+                    <span>{isGeneratingAi ? 'AI Menulis...' : '✨ Generate AI (FastAPI)'}</span>
+                  </button>
+                </div>
                 <input
                   type="text"
                   required
@@ -1310,6 +1352,19 @@ export default function DashboardMatrix({
 
               <div>
                 <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Kualifikasi & Skill Wajib
+                </label>
+                <input
+                  type="text"
+                  value={createJobForm.skills_required}
+                  onChange={(e) => setCreateJobForm({ ...createJobForm, skills_required: e.target.value })}
+                  placeholder="Misal: React, TypeScript, Docker, Kubernetes"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-[#111827] text-slate-900 dark:text-slate-100 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   Deskripsi Pekerjaan *
                 </label>
                 <textarea
@@ -1317,9 +1372,35 @@ export default function DashboardMatrix({
                   required
                   value={createJobForm.description}
                   onChange={(e) => setCreateJobForm({ ...createJobForm, description: e.target.value })}
-                  placeholder="Jelaskan peran kerja dan kualifikasi utama..."
+                  placeholder="Jelaskan peran kerja dan tanggung jawab utama..."
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-[#111827] text-slate-900 dark:text-slate-100 focus:outline-none"
                 />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Persyaratan & Kriteria Pelamar
+                </label>
+                <textarea
+                  rows={3}
+                  value={createJobForm.requirements}
+                  onChange={(e) => setCreateJobForm({ ...createJobForm, requirements: e.target.value })}
+                  placeholder="Misal: Minimal 3 tahun pengalaman, S1 Teknik Informatika..."
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-[#111827] text-slate-900 dark:text-slate-100 focus:outline-none"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="urgently_hiring"
+                  checked={Boolean(createJobForm.urgently_hiring)}
+                  onChange={(e) => setCreateJobForm({ ...createJobForm, urgently_hiring: e.target.checked })}
+                  className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                />
+                <label htmlFor="urgently_hiring" className="text-xs font-semibold text-slate-700 dark:text-slate-300 cursor-pointer">
+                  Tandai sebagai <span className="text-rose-600 dark:text-rose-400 font-bold">Urgently Hiring 🔥</span>
+                </label>
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">

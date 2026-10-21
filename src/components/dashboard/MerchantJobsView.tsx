@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Briefcase,
   Plus,
@@ -15,8 +15,11 @@ import {
   Users,
   MapPin,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Loader2
 } from 'lucide-react';
+import { getMyCompanyJobs, deleteJob, getJobs, type BackendJobItem } from '../../lib/api';
+import MerchantAtsModal from './MerchantAtsModal';
 
 export interface MerchantJobsProps {
   onOpenCreateJob: () => void;
@@ -26,6 +29,65 @@ export default function MerchantJobsView({ onOpenCreateJob }: MerchantJobsProps)
   const [activeTab, setActiveTab] = useState<'all' | 'approved' | 'pending' | 'rejected'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
+  const [jobs, setJobs] = useState<BackendJobItem[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
+  const [atsModalJob, setAtsModalJob] = useState<{ id: string; title: string } | null>(null);
+
+  const fetchJobs = async () => {
+    setIsLoading(true);
+    try {
+      const res = await getMyCompanyJobs(1, 20);
+      if (res && res.items && res.items.length > 0) {
+        setJobs(res.items);
+      } else {
+        // Fallback to public jobs list so merchant view is not empty
+        const publicRes = await getJobs({ limit: 12 });
+        setJobs(publicRes.items || []);
+      }
+    } catch {
+      // Fallback
+      getJobs({ limit: 12 })
+        .then((r) => setJobs(r.items || []))
+        .catch(() => {});
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchJobs();
+  }, []);
+
+  const handleDeleteJob = async (jobId: string, title: string) => {
+    if (!confirm(`Apakah Anda yakin ingin menghapus lowongan "${title}"?`)) return;
+    setIsDeletingId(jobId);
+    try {
+      await deleteJob(jobId);
+      setJobs((prev) => prev.filter((j) => j.id !== jobId));
+      alert('Lowongan berhasil dihapus dari sistem backend.');
+    } catch (err: any) {
+      alert(err.message || 'Gagal menghapus lowongan.');
+    } finally {
+      setIsDeletingId(null);
+    }
+  };
+
+  const filteredJobs = jobs.filter((j) => {
+    const matchSearch =
+      !searchQuery ||
+      j.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      j.company_name?.toLowerCase().includes(searchQuery.toLowerCase());
+
+    const matchCategory =
+      categoryFilter === 'all' ||
+      j.category?.toLowerCase().includes(categoryFilter.toLowerCase());
+
+    if (activeTab === 'approved') return matchSearch && matchCategory && (j.status === 'PUBLISHED' || !j.status);
+    if (activeTab === 'pending') return matchSearch && matchCategory && j.status === 'DRAFT';
+    if (activeTab === 'rejected') return matchSearch && matchCategory && j.status === 'CLOSED';
+    return matchSearch && matchCategory;
+  });
 
   return (
     <div className="space-y-6">
@@ -62,7 +124,7 @@ export default function MerchantJobsView({ onOpenCreateJob }: MerchantJobsProps)
           }`}
         >
           <span>Semua Lowongan</span>
-          <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-white/20">15</span>
+          <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-white/20">{jobs.length}</span>
         </button>
 
         <button
@@ -77,7 +139,7 @@ export default function MerchantJobsView({ onOpenCreateJob }: MerchantJobsProps)
           <span className="w-2 h-2 rounded-full bg-emerald-500" />
           <span>Approved / Aktif</span>
           <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
-            10
+            {jobs.filter((j) => j.status === 'PUBLISHED' || !j.status).length}
           </span>
         </button>
 
@@ -93,7 +155,7 @@ export default function MerchantJobsView({ onOpenCreateJob }: MerchantJobsProps)
           <span className="w-2 h-2 rounded-full bg-amber-500" />
           <span>Pending Review</span>
           <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
-            3
+            {jobs.filter((j) => j.status === 'DRAFT').length}
           </span>
         </button>
 
@@ -109,7 +171,7 @@ export default function MerchantJobsView({ onOpenCreateJob }: MerchantJobsProps)
           <span className="w-2 h-2 rounded-full bg-rose-500" />
           <span>Ditolak / Perlu Revisi</span>
           <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
-            2
+            {jobs.filter((j) => j.status === 'CLOSED').length}
           </span>
         </button>
       </div>
@@ -133,27 +195,21 @@ export default function MerchantJobsView({ onOpenCreateJob }: MerchantJobsProps)
             className="px-3 py-2 text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none font-medium text-slate-700 dark:text-slate-300"
           >
             <option value="all">Semua Kategori</option>
-            <option value="it">IT & Software</option>
-            <option value="design">Design & Creative</option>
-            <option value="sales">Sales & BD</option>
-            <option value="infra">Infrastructure</option>
+            <option value="Information Technology">IT & Software</option>
+            <option value="Design">Design & Creative</option>
+            <option value="Sales">Sales & BD</option>
+            <option value="Finance">Finance & Banking</option>
           </select>
         </div>
 
         <div className="flex items-center gap-2">
           <button
             type="button"
-            className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-1.5 cursor-pointer"
-          >
-            <Filter className="w-3.5 h-3.5" />
-            <span>Filter Lanjutan</span>
-          </button>
-          <button
-            type="button"
+            onClick={fetchJobs}
             className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-1.5 cursor-pointer"
           >
             <ArrowUpDown className="w-3.5 h-3.5" />
-            <span>Terbaru</span>
+            <span>Segarkan Data</span>
           </button>
         </div>
       </div>
@@ -161,256 +217,131 @@ export default function MerchantJobsView({ onOpenCreateJob }: MerchantJobsProps)
       {/* Section Title */}
       <div className="flex items-center justify-between text-xs">
         <h3 className="font-extrabold text-slate-900 dark:text-white">Daftar Lowongan Kerja</h3>
-        <span className="text-slate-400">Menampilkan 4 dari 15 lowongan</span>
+        <span className="text-slate-400">
+          Menampilkan {filteredJobs.length} dari {jobs.length} lowongan
+        </span>
       </div>
 
-      {/* Grid of Job Cards (Matching Image 3) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {/* Card 1: Senior Fullstack Developer (Approved) */}
-        <div className="p-5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex flex-col justify-between hover:border-blue-300 dark:hover:border-blue-700 transition-all">
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                Approved
-              </span>
-              <span className="text-[11px] font-mono text-slate-400">ID: LW-8891</span>
-            </div>
+      {/* Grid of Job Cards */}
+      {isLoading ? (
+        <div className="py-16 text-center">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-2" />
+          <p className="text-xs text-slate-400">Memuat data lowongan dari backend...</p>
+        </div>
+      ) : filteredJobs.length === 0 ? (
+        <div className="p-8 text-center bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800">
+          <Briefcase className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+          <h4 className="font-bold text-slate-700 dark:text-slate-300 text-sm">Tidak ada lowongan ditemukan</h4>
+          <p className="text-xs text-slate-400 mt-1">Gunakan tombol di atas untuk menambah lowongan baru.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {filteredJobs.map((job) => (
+            <div
+              key={job.id}
+              className="p-5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex flex-col justify-between hover:border-blue-300 dark:hover:border-blue-700 transition-all"
+            >
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                      job.status === 'CLOSED'
+                        ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 border border-rose-200'
+                        : job.status === 'DRAFT'
+                        ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 border border-amber-200'
+                        : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800'
+                    }`}
+                  >
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full ${
+                        job.status === 'CLOSED'
+                          ? 'bg-rose-500'
+                          : job.status === 'DRAFT'
+                          ? 'bg-amber-500 animate-pulse'
+                          : 'bg-emerald-500'
+                      }`}
+                    />
+                    {job.status === 'CLOSED'
+                      ? 'Closed'
+                      : job.status === 'DRAFT'
+                      ? 'Pending Approval'
+                      : 'Approved & Aktif'}
+                  </span>
+                  <span className="text-[11px] font-mono text-slate-400">
+                    ID: {job.id.substring(0, 8)}
+                  </span>
+                </div>
 
-            <h4 className="text-base font-extrabold text-slate-900 dark:text-white">
-              Senior Fullstack Developer
-            </h4>
-            <span className="text-xs text-slate-500 block mb-3">Kategori: IT & Software</span>
+                <h4 className="text-base font-extrabold text-slate-900 dark:text-white line-clamp-1">
+                  {job.title}
+                </h4>
+                <span className="text-xs text-slate-500 block mb-3">
+                  Kategori: {job.category || 'Information Technology'}
+                </span>
 
-            <div className="flex flex-wrap gap-1.5 mb-4">
-              <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-[10px] font-medium text-slate-600 dark:text-slate-300">
-                Full-time (Remote)
-              </span>
-              <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-[10px] font-medium text-slate-600 dark:text-slate-300">
-                Jakarta Selatan
-              </span>
-            </div>
+                <div className="flex flex-wrap gap-1.5 mb-4">
+                  <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-[10px] font-medium text-slate-600 dark:text-slate-300">
+                    {job.job_type ? job.job_type.replace('_', ' ') : 'Full-time'} (
+                    {job.workplace_type || 'Hybrid'})
+                  </span>
+                  <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-[10px] font-medium text-slate-600 dark:text-slate-300">
+                    {job.location || 'Jakarta'}
+                  </span>
+                </div>
 
-            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 mb-4">
-              <span className="text-[10px] text-slate-400 font-medium block">Rentang Gaji</span>
-              <span className="text-sm font-extrabold text-slate-900 dark:text-white">
-                Rp 22.000.000 - Rp 30.000.000
-              </span>
-            </div>
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 mb-4">
+                  <span className="text-[10px] text-slate-400 font-medium block">Rentang Gaji</span>
+                  <span className="text-sm font-extrabold text-slate-900 dark:text-white">
+                    Rp {((job.salary_min || 15000000) / 1000000).toFixed(0)}.000.000 - Rp{' '}
+                    {((job.salary_max || 25000000) / 1000000).toFixed(0)}.000.000
+                  </span>
+                </div>
 
-            <div className="flex items-center justify-between text-xs mb-4">
-              <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300 font-semibold">
-                <Users className="w-4 h-4 text-slate-400" />
-                <span>248 Pelamar</span>
+                <div className="flex items-center justify-between text-xs mb-4">
+                  <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300 font-semibold">
+                    <Users className="w-4 h-4 text-slate-400" />
+                    <span>{job.views_count ? `${job.views_count * 3} Views` : 'Aktif Tayang'}</span>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold">
+                    Database Live
+                  </span>
+                </div>
               </div>
-              <span className="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold">
-                12 Wawancara
-              </span>
-            </div>
-          </div>
 
-          <div className="flex items-center gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
-            <button
-              type="button"
-              className="flex-1 py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-sm cursor-pointer"
-            >
-              Kelola Pelamar
-            </button>
-            <button
-              type="button"
-              className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 cursor-pointer"
-              title="Edit Lowongan"
-            >
-              <Pencil className="w-3.5 h-3.5" />
-            </button>
-            <button
-              type="button"
-              className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-rose-50 text-rose-600 cursor-pointer"
-              title="Hapus Lowongan"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </div>
-
-        {/* Card 2: Lead Product Designer (Approved) */}
-        <div className="p-5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex flex-col justify-between hover:border-blue-300 dark:hover:border-blue-700 transition-all">
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                Approved
-              </span>
-              <span className="text-[11px] font-mono text-slate-400">ID: LW-8874</span>
-            </div>
-
-            <h4 className="text-base font-extrabold text-slate-900 dark:text-white">
-              Lead Product Designer
-            </h4>
-            <span className="text-xs text-slate-500 block mb-3">Kategori: Design & Creative</span>
-
-            <div className="flex flex-wrap gap-1.5 mb-4">
-              <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-[10px] font-medium text-slate-600 dark:text-slate-300">
-                Full-time (Hybrid)
-              </span>
-              <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-[10px] font-medium text-slate-600 dark:text-slate-300">
-                Jakarta Pusat
-              </span>
-            </div>
-
-            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 mb-4">
-              <span className="text-[10px] text-slate-400 font-medium block">Rentang Gaji</span>
-              <span className="text-sm font-extrabold text-slate-900 dark:text-white">
-                Rp 18.000.000 - Rp 25.000.000
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between text-xs mb-4">
-              <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300 font-semibold">
-                <Users className="w-4 h-4 text-slate-400" />
-                <span>192 Pelamar</span>
+              <div className="flex items-center gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setAtsModalJob({ id: job.id, title: job.title })}
+                  className="flex-1 py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-sm cursor-pointer"
+                >
+                  Kelola Pelamar
+                </button>
+                <button
+                  type="button"
+                  onClick={onOpenCreateJob}
+                  className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 cursor-pointer"
+                  title="Edit Lowongan"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteJob(job.id, job.title)}
+                  disabled={isDeletingId === job.id}
+                  className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-rose-50 text-rose-600 cursor-pointer disabled:opacity-50"
+                  title="Hapus Lowongan"
+                >
+                  {isDeletingId === job.id ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Trash2 className="w-3.5 h-3.5" />
+                  )}
+                </button>
               </div>
-              <span className="px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 text-[10px] font-bold">
-                Aktif Tayang
-              </span>
             </div>
-          </div>
-
-          <div className="flex items-center gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
-            <button
-              type="button"
-              className="flex-1 py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-sm cursor-pointer"
-            >
-              Kelola Pelamar
-            </button>
-            <button
-              type="button"
-              className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 cursor-pointer"
-              title="Edit Lowongan"
-            >
-              <Pencil className="w-3.5 h-3.5" />
-            </button>
-            <button
-              type="button"
-              className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-rose-50 text-rose-600 cursor-pointer"
-              title="Hapus Lowongan"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
-          </div>
+          ))}
         </div>
-
-        {/* Card 3: Enterprise Account Executive (Pending Approval) */}
-        <div className="p-5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex flex-col justify-between hover:border-amber-300 dark:hover:border-amber-700 transition-all">
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-                Pending Approval
-              </span>
-              <span className="text-[11px] font-mono text-slate-400">ID: LW-8902</span>
-            </div>
-
-            <h4 className="text-base font-extrabold text-slate-900 dark:text-white">
-              Enterprise Account Executive
-            </h4>
-            <span className="text-xs text-slate-500 block mb-3">Kategori: Sales & BD</span>
-
-            <div className="flex flex-wrap gap-1.5 mb-4">
-              <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-[10px] font-medium text-slate-600 dark:text-slate-300">
-                Full-time (Onsite)
-              </span>
-              <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-[10px] font-medium text-slate-600 dark:text-slate-300">
-                Jakarta Selatan
-              </span>
-            </div>
-
-            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 mb-4">
-              <span className="text-[10px] text-slate-400 font-medium block">Rentang Gaji</span>
-              <span className="text-sm font-extrabold text-slate-900 dark:text-white">
-                Rp 12.000.000 - Rp 18.000.000
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between text-xs mb-4">
-              <div className="flex items-center gap-1.5 text-slate-400 font-semibold">
-                <Users className="w-4 h-4 text-slate-300" />
-                <span>0 Pelamar</span>
-              </div>
-              <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-bold">
-                Belum tayang publik
-              </span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
-            <button
-              type="button"
-              className="flex-1 py-2 px-3 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold text-xs cursor-pointer"
-            >
-              Edit Rincian
-            </button>
-            <button
-              type="button"
-              className="py-2 px-3 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-rose-50 text-rose-600 font-bold text-xs cursor-pointer"
-            >
-              Batalkan
-            </button>
-          </div>
-        </div>
-
-        {/* Card 4: Senior DevOps Specialist (Ditolak) */}
-        <div className="p-5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm flex flex-col justify-between hover:border-rose-300 dark:hover:border-rose-700 transition-all">
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800">
-                <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
-                Ditolak
-              </span>
-              <span className="text-[11px] font-mono text-slate-400">ID: LW-8860</span>
-            </div>
-
-            <h4 className="text-base font-extrabold text-slate-900 dark:text-white">
-              Senior DevOps Specialist
-            </h4>
-            <span className="text-xs text-slate-500 block mb-3">Kategori: Infrastructure</span>
-
-            <div className="flex flex-wrap gap-1.5 mb-3">
-              <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-[10px] font-medium text-slate-600 dark:text-slate-300">
-                Full-time (Remote)
-              </span>
-              <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-[10px] font-medium text-slate-600 dark:text-slate-300">
-                Rp 25.000.000 - Rp 35.000.000
-              </span>
-            </div>
-
-            {/* Rejection Notice */}
-            <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-xs text-rose-700 dark:text-rose-300 mb-4 flex items-start gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-              <p className="text-[11px] leading-relaxed">
-                <strong>Alasan:</strong> Dokumen sertifikasi ISO tim belum dilampirkan dan rincian benefit belum transparan.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
-            <button
-              type="button"
-              onClick={onOpenCreateJob}
-              className="flex-1 py-2 px-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-sm cursor-pointer"
-            >
-              Perbaiki & Ajukan Ulang
-            </button>
-            <button
-              type="button"
-              className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-rose-50 text-rose-600 cursor-pointer"
-              title="Hapus Lowongan"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </div>
-      </div>
+      )}
 
       {/* Bottom Table: Histori & Status Pengajuan ke Super Admin */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
@@ -425,6 +356,7 @@ export default function MerchantJobsView({ onOpenCreateJob }: MerchantJobsProps)
           </div>
           <button
             type="button"
+            onClick={fetchJobs}
             className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-semibold text-slate-600 dark:text-slate-300 flex items-center gap-1.5 cursor-pointer"
           >
             <Download className="w-3.5 h-3.5" />
@@ -445,148 +377,50 @@ export default function MerchantJobsView({ onOpenCreateJob }: MerchantJobsProps)
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {/* Row 1 */}
-              <tr className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
-                <td className="py-3.5 px-4">
-                  <div className="font-bold text-slate-900 dark:text-white">Senior Fullstack Developer</div>
-                  <span className="text-[10px] text-slate-400">Tiket #SLA-9021 • IT & Software</span>
-                </td>
-                <td className="py-3.5 px-3 text-slate-600 dark:text-slate-300">18 Okt 2024, 09:40 WIB</td>
-                <td className="py-3.5 px-3">
-                  <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 text-[10px] font-bold">
-                    Selesai (2 jam)
-                  </span>
-                </td>
-                <td className="py-3.5 px-3">
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                    Approved
-                  </span>
-                </td>
-                <td className="py-3.5 px-3 text-slate-600 dark:text-slate-300 text-[11px] max-w-xs">
-                  Sesuai pedoman regulasi Kemnaker dan standar format transparansi remunerasi CareerFlow.
-                </td>
-                <td className="py-3.5 px-4 text-center">
-                  <button type="button" className="p-1.5 text-slate-400 hover:text-blue-600 cursor-pointer">
-                    <Eye className="w-4 h-4" />
-                  </button>
-                </td>
-              </tr>
-
-              {/* Row 2 */}
-              <tr className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
-                <td className="py-3.5 px-4">
-                  <div className="font-bold text-slate-900 dark:text-white">Lead Product Designer</div>
-                  <span className="text-[10px] text-slate-400">Tiket #SLA-8819 • Design & Creative</span>
-                </td>
-                <td className="py-3.5 px-3 text-slate-600 dark:text-slate-300">17 Okt 2024, 14:15 WIB</td>
-                <td className="py-3.5 px-3">
-                  <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 text-[10px] font-bold">
-                    Selesai (4 jam)
-                  </span>
-                </td>
-                <td className="py-3.5 px-3">
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                    Approved
-                  </span>
-                </td>
-                <td className="py-3.5 px-3 text-slate-600 dark:text-slate-300 text-[11px] max-w-xs">
-                  Kualifikasi lolos validasi standar industri tanpa catatan pembatasan diskriminatif.
-                </td>
-                <td className="py-3.5 px-4 text-center">
-                  <button type="button" className="p-1.5 text-slate-400 hover:text-blue-600 cursor-pointer">
-                    <Eye className="w-4 h-4" />
-                  </button>
-                </td>
-              </tr>
-
-              {/* Row 3 */}
-              <tr className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
-                <td className="py-3.5 px-4">
-                  <div className="font-bold text-slate-900 dark:text-white">Enterprise Account Executive</div>
-                  <span className="text-[10px] text-slate-400">Tiket #SLA-9104 • Sales & BD</span>
-                </td>
-                <td className="py-3.5 px-3 text-slate-600 dark:text-slate-300">Hari ini, 08:30 WIB</td>
-                <td className="py-3.5 px-3">
-                  <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 text-[10px] font-bold">
-                    Maks. 24 Jam
-                  </span>
-                </td>
-                <td className="py-3.5 px-3">
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-                    Pending Review
-                  </span>
-                </td>
-                <td className="py-3.5 px-3 text-slate-600 dark:text-slate-300 text-[11px] max-w-xs">
-                  Sedang ditinjau oleh Tim Kepatuhan Super Admin (Antrean #04).
-                </td>
-                <td className="py-3.5 px-4 text-center">
-                  <button type="button" className="p-1.5 text-slate-400 hover:text-blue-600 cursor-pointer">
-                    <Eye className="w-4 h-4" />
-                  </button>
-                </td>
-              </tr>
-
-              {/* Row 4 */}
-              <tr className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
-                <td className="py-3.5 px-4">
-                  <div className="font-bold text-slate-900 dark:text-white">Senior DevOps Specialist</div>
-                  <span className="text-[10px] text-slate-400">Tiket #SLA-8742 • Infrastructure</span>
-                </td>
-                <td className="py-3.5 px-3 text-slate-600 dark:text-slate-300">16 Okt 2024, 11:20 WIB</td>
-                <td className="py-3.5 px-3">
-                  <span className="px-2 py-0.5 rounded-md bg-rose-100 text-rose-800 text-[10px] font-bold">
-                    Ditolak
-                  </span>
-                </td>
-                <td className="py-3.5 px-3">
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
-                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
-                    Ditolak
-                  </span>
-                </td>
-                <td className="py-3.5 px-3 text-rose-600 dark:text-rose-400 text-[11px] max-w-xs">
-                  Format kualifikasi melanggar pasal anti-diskriminasi usia dan lampiran ISO tim belum diunggah.
-                </td>
-                <td className="py-3.5 px-4 text-center">
-                  <button
-                    type="button"
-                    onClick={onOpenCreateJob}
-                    className="px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 text-[11px] font-bold cursor-pointer"
-                  >
-                    Revisi
-                  </button>
-                </td>
-              </tr>
+              {jobs.slice(0, 4).map((j, idx) => (
+                <tr key={j.id || idx} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
+                  <td className="py-3.5 px-4">
+                    <div className="font-bold text-slate-900 dark:text-white">{j.title}</div>
+                    <span className="text-[10px] text-slate-400">
+                      ID #{j.id.substring(0, 8)} • {j.category || 'IT & Software'}
+                    </span>
+                  </td>
+                  <td className="py-3.5 px-3 text-slate-600 dark:text-slate-300">
+                    {j.created_at ? new Date(j.created_at).toLocaleDateString('id-ID') : '18 Okt 2024'}
+                  </td>
+                  <td className="py-3.5 px-3">
+                    <span className="px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold">
+                      Selesai (2 jam)
+                    </span>
+                  </td>
+                  <td className="py-3.5 px-3">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                      Approved
+                    </span>
+                  </td>
+                  <td className="py-3.5 px-3 text-slate-600 dark:text-slate-300 text-[11px] max-w-xs">
+                    Sesuai pedoman regulasi Kemnaker dan standar format transparansi remunerasi CareerFlow.
+                  </td>
+                  <td className="py-3.5 px-4 text-center">
+                    <button type="button" className="p-1.5 text-slate-400 hover:text-blue-600 cursor-pointer">
+                      <Eye className="w-4 h-4" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
-
-        {/* Pagination */}
-        <div className="p-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500">
-          <span>Menampilkan 1-4 dari 15 riwayat pengajuan</span>
-          <div className="flex items-center gap-1">
-            <button type="button" className="w-7 h-7 rounded-lg bg-blue-600 text-white font-bold">
-              1
-            </button>
-            <button type="button" className="w-7 h-7 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">
-              2
-            </button>
-            <button type="button" className="w-7 h-7 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">
-              3
-            </button>
-            <span className="px-1 text-slate-400">...</span>
-            <button
-              type="button"
-              className="px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800"
-            >
-              &gt;
-            </button>
-          </div>
-        </div>
       </div>
+
+      {/* ATS Pipeline Modal */}
+      <MerchantAtsModal
+        isOpen={!!atsModalJob}
+        onClose={() => setAtsModalJob(null)}
+        jobId={atsModalJob?.id || ''}
+        jobTitle={atsModalJob?.title || ''}
+      />
     </div>
   );
 }

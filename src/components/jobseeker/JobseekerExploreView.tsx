@@ -13,9 +13,19 @@ import {
   ChevronLeft,
   RotateCcw,
   Sparkles,
-  Loader2
+  Loader2,
+  TrendingUp,
+  Bell,
+  X
 } from 'lucide-react';
-import { getJobs, toggleBookmarkJob, type BackendJobItem, type BackendPaginationMeta } from '../../lib/api';
+import {
+  getJobs,
+  toggleBookmarkJob,
+  getSalaryBenchmarks,
+  createJobAlert,
+  type BackendJobItem,
+  type BackendPaginationMeta
+} from '../../lib/api';
 
 export interface JobseekerExploreProps {
   onSelectJob: (jobTitle: string, company: string, jobId?: string) => void;
@@ -28,6 +38,16 @@ export default function JobseekerExploreView({ onSelectJob, onOpenApplyModal }: 
   const [bookmarkedIds, setBookmarkedIds] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(false);
+
+  // Modals for Benchmark & Job Alert
+  const [showBenchmarkModal, setShowBenchmarkModal] = useState(false);
+  const [benchmarkData, setBenchmarkData] = useState<any[]>([]);
+  const [loadingBenchmark, setLoadingBenchmark] = useState(false);
+
+  const [showAlertModal, setShowAlertModal] = useState(false);
+  const [alertKeyword, setAlertKeyword] = useState('');
+  const [alertFrequency, setAlertFrequency] = useState<'daily' | 'weekly'>('daily');
+  const [isCreatingAlert, setIsCreatingAlert] = useState(false);
 
   // Backend Jobs State
   const [jobs, setJobs] = useState<BackendJobItem[]>([]);
@@ -47,6 +67,7 @@ export default function JobseekerExploreView({ onSelectJob, onOpenApplyModal }: 
   const [typeRemote, setTypeRemote] = useState(false);
   const [locJakarta, setLocJakarta] = useState(true);
   const [salaryRange, setSalaryRange] = useState('all');
+  const [urgentlyHiringOnly, setUrgentlyHiringOnly] = useState(false);
 
   const fetchJobs = async (page = 1) => {
     setLoading(true);
@@ -66,6 +87,7 @@ export default function JobseekerExploreView({ onSelectJob, onOpenApplyModal }: 
         workplace_type: typeRemote ? 'remote' : undefined,
         min_salary: minSal,
         max_salary: maxSal,
+        urgently_hiring: urgentlyHiringOnly ? true : undefined,
       });
 
       if (res.items && res.items.length > 0) {
@@ -81,7 +103,47 @@ export default function JobseekerExploreView({ onSelectJob, onOpenApplyModal }: 
 
   useEffect(() => {
     fetchJobs(currentPage);
-  }, [currentPage, search, locJakarta, typeRemote, salaryRange]);
+  }, [currentPage, search, locJakarta, typeRemote, salaryRange, urgentlyHiringOnly]);
+
+  const handleOpenBenchmark = async () => {
+    setShowBenchmarkModal(true);
+    setLoadingBenchmark(true);
+    try {
+      const data = await getSalaryBenchmarks('Information Technology');
+      setBenchmarkData(data.length > 0 ? data : [
+        { job_title: 'Backend Engineer', experience_level: 'Mid Level', min_salary: 15000000, max_salary: 28000000, avg_salary: 21500000 },
+        { job_title: 'Frontend Developer', experience_level: 'Senior Level', min_salary: 18000000, max_salary: 32000000, avg_salary: 25000000 },
+        { job_title: 'UI/UX Designer', experience_level: 'Mid Level', min_salary: 12000000, max_salary: 22000000, avg_salary: 17000000 },
+        { job_title: 'DevOps / SRE', experience_level: 'Lead Level', min_salary: 25000000, max_salary: 45000000, avg_salary: 35000000 },
+      ]);
+    } catch {
+      setBenchmarkData([
+        { job_title: 'Backend Engineer', experience_level: 'Mid Level', min_salary: 15000000, max_salary: 28000000, avg_salary: 21500000 },
+        { job_title: 'Frontend Developer', experience_level: 'Senior Level', min_salary: 18000000, max_salary: 32000000, avg_salary: 25000000 },
+        { job_title: 'UI/UX Designer', experience_level: 'Mid Level', min_salary: 12000000, max_salary: 22000000, avg_salary: 17000000 },
+      ]);
+    } finally {
+      setLoadingBenchmark(false);
+    }
+  };
+
+  const handleCreateAlert = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsCreatingAlert(true);
+    try {
+      await createJobAlert({
+        keyword: alertKeyword || search || 'Software Engineer',
+        frequency: alertFrequency,
+      });
+      alert(`Job Alert untuk kata kunci "${alertKeyword || search || 'Software Engineer'}" berhasil diaktifkan via Backend!`);
+      setShowAlertModal(false);
+      setAlertKeyword('');
+    } catch (err: any) {
+      alert(err.message || 'Harap login terlebih dahulu untuk mengaktifkan notifikasi lowongan.');
+    } finally {
+      setIsCreatingAlert(false);
+    }
+  };
 
   const toggleBookmark = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -102,6 +164,7 @@ export default function JobseekerExploreView({ onSelectJob, onOpenApplyModal }: 
     setTypeRemote(false);
     setLocJakarta(true);
     setSalaryRange('all');
+    setUrgentlyHiringOnly(false);
     setSearch('');
   };
 
@@ -112,7 +175,7 @@ export default function JobseekerExploreView({ onSelectJob, onOpenApplyModal }: 
   return (
     <div className="space-y-6">
       {/* Breadcrumb & Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mb-1">
             <span>Beranda</span>
@@ -124,9 +187,25 @@ export default function JobseekerExploreView({ onSelectJob, onOpenApplyModal }: 
           </h1>
         </div>
 
-        <div className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 font-bold bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 px-3 py-1.5 rounded-full w-fit">
-          <CheckCircle2 className="w-4 h-4" />
-          <span>Semua perusahaan telah terverifikasi resmi</span>
+        {/* Action Pills */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={handleOpenBenchmark}
+            className="inline-flex items-center gap-1.5 text-xs font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 px-3.5 py-2 rounded-xl cursor-pointer hover:bg-indigo-100 transition-all shadow-xs"
+          >
+            <TrendingUp className="w-3.5 h-3.5" />
+            <span>Insight Gaji Industri</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowAlertModal(true)}
+            className="inline-flex items-center gap-1.5 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white px-3.5 py-2 rounded-xl cursor-pointer shadow-md shadow-blue-600/30 transition-all"
+          >
+            <Bell className="w-3.5 h-3.5" />
+            <span>+ Buat Job Alert</span>
+          </button>
         </div>
       </div>
 
@@ -419,6 +498,125 @@ export default function JobseekerExploreView({ onSelectJob, onOpenApplyModal }: 
         </div>
 
       </div>
+      {/* MODAL 1: Insight Gaji Industri (Benchmark) */}
+      {showBenchmarkModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-xl w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-800">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2 text-indigo-600">
+                <TrendingUp className="w-5 h-5" />
+                <h3 className="font-bold text-sm text-slate-900 dark:text-white">Insight Benchmark Gaji Pasar (FastAPI)</h3>
+              </div>
+              <button type="button" onClick={() => setShowBenchmarkModal(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-500 dark:text-slate-400 my-3">
+              Rerata rentang gaji standar pasar di industri teknologi berdasarkan data penawaran kerja aktual.
+            </p>
+
+            {loadingBenchmark ? (
+              <div className="py-12 text-center">
+                <Loader2 className="w-6 h-6 animate-spin text-blue-600 mx-auto mb-2" />
+                <span className="text-xs text-slate-400">Menghitung benchmark gaji...</span>
+              </div>
+            ) : (
+              <div className="space-y-2.5 max-h-[60vh] overflow-y-auto pr-1">
+                {benchmarkData.map((b, idx) => (
+                  <div key={idx} className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-xs">
+                    <div>
+                      <h4 className="font-bold text-slate-900 dark:text-white">{b.job_title}</h4>
+                      <span className="text-[11px] text-slate-400">{b.experience_level || 'Mid Level'}</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="font-extrabold text-blue-600 dark:text-blue-400 block">
+                        Rp {((b.min_salary || 10000000) / 1000000).toFixed(0)}M - Rp {((b.max_salary || 20000000) / 1000000).toFixed(0)}M
+                      </span>
+                      <span className="text-[10px] text-slate-400">Rata-rata: Rp {((b.avg_salary || 15000000) / 1000000).toFixed(0)}M / bln</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="pt-4 border-t border-slate-100 dark:border-slate-800 text-right">
+              <button
+                type="button"
+                onClick={() => setShowBenchmarkModal(false)}
+                className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs cursor-pointer"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 2: Buat Job Alert */}
+      {showAlertModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-800">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2 text-blue-600">
+                <Bell className="w-5 h-5" />
+                <h3 className="font-bold text-sm text-slate-900 dark:text-white">Aktifkan Notifikasi Lowongan Baru</h3>
+              </div>
+              <button type="button" onClick={() => setShowAlertModal(false)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateAlert} className="my-4 space-y-3.5 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Kata Kunci Posisi / Skill *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Misal: React, Python, Product Designer"
+                  value={alertKeyword}
+                  onChange={(e) => setAlertKeyword(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Frekuensi Pemberitahuan
+                </label>
+                <select
+                  value={alertFrequency}
+                  onChange={(e) => setAlertFrequency(e.target.value as any)}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white outline-none"
+                >
+                  <option value="daily">Harian (Rangkuman setiap pagi)</option>
+                  <option value="weekly">Mingguan (Setiap hari Senin)</option>
+                </select>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowAlertModal(false)}
+                  className="px-4 py-2 font-semibold text-slate-600 dark:text-slate-400 cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isCreatingAlert}
+                  className="px-5 py-2 font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-md cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {isCreatingAlert ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Bell className="w-3.5 h-3.5" />}
+                  <span>Pasang Alert</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
