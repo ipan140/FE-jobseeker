@@ -30,10 +30,11 @@ import {
 export interface JobseekerExploreProps {
   onSelectJob: (jobTitle: string, company: string, jobId?: string) => void;
   onOpenApplyModal?: (jobTitle: string, company: string, jobId?: string) => void;
+  initialSearch?: string;
 }
 
-export default function JobseekerExploreView({ onSelectJob, onOpenApplyModal }: JobseekerExploreProps) {
-  const [search, setSearch] = useState('');
+export default function JobseekerExploreView({ onSelectJob, onOpenApplyModal, initialSearch }: JobseekerExploreProps) {
+  const [search, setSearch] = useState(initialSearch || '');
   const [selectedSort, setSelectedSort] = useState('relevant');
   const [bookmarkedIds, setBookmarkedIds] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
@@ -61,13 +62,19 @@ export default function JobseekerExploreView({ onSelectJob, onOpenApplyModal }: 
   });
 
   // Filters State
-  const [categoryTech, setCategoryTech] = useState(true);
+  const [categoryTech, setCategoryTech] = useState(false);
   const [categoryDesign, setCategoryDesign] = useState(false);
-  const [typeFullTime, setTypeFullTime] = useState(true);
+  const [typeFullTime, setTypeFullTime] = useState(false);
   const [typeRemote, setTypeRemote] = useState(false);
-  const [locJakarta, setLocJakarta] = useState(true);
+  const [locJakarta, setLocJakarta] = useState(false);
   const [salaryRange, setSalaryRange] = useState('all');
   const [urgentlyHiringOnly, setUrgentlyHiringOnly] = useState(false);
+
+  useEffect(() => {
+    if (initialSearch !== undefined) {
+      setSearch(initialSearch);
+    }
+  }, [initialSearch]);
 
   const fetchJobs = async (page = 1) => {
     setLoading(true);
@@ -79,23 +86,30 @@ export default function JobseekerExploreView({ onSelectJob, onOpenApplyModal }: 
       else if (salaryRange === '10-20') { minSal = 10000000; maxSal = 20000000; }
       else if (salaryRange === 'above20') { minSal = 20000000; }
 
+      let category: string | undefined = undefined;
+      if (categoryTech && !categoryDesign) category = 'Information Technology / Software';
+      else if (categoryDesign && !categoryTech) category = 'UI/UX & Creative Design';
+
       const res = await getJobs({
         page,
         limit: 10,
         search: search.trim() || undefined,
+        category,
         location: locJakarta ? 'Jakarta' : undefined,
         workplace_type: typeRemote ? 'remote' : undefined,
+        job_type: typeFullTime ? 'full_time' : undefined,
         min_salary: minSal,
         max_salary: maxSal,
         urgently_hiring: urgentlyHiringOnly ? true : undefined,
       });
 
-      if (res.items && res.items.length > 0) {
-        setJobs(res.items);
+      setJobs(res.items || []);
+      if (res.meta) {
         setPaginationMeta(res.meta);
       }
     } catch (err) {
       console.warn('Backend getJobs warning:', err);
+      setJobs([]);
     } finally {
       setLoading(false);
     }
@@ -103,7 +117,17 @@ export default function JobseekerExploreView({ onSelectJob, onOpenApplyModal }: 
 
   useEffect(() => {
     fetchJobs(currentPage);
-  }, [currentPage, search, locJakarta, typeRemote, salaryRange, urgentlyHiringOnly]);
+  }, [currentPage, search, locJakarta, typeRemote, typeFullTime, salaryRange, urgentlyHiringOnly, categoryTech, categoryDesign]);
+
+  const sortedJobs = React.useMemo(() => {
+    let list = [...jobs];
+    if (selectedSort === 'salary') {
+      list.sort((a, b) => (b.salary_max || 0) - (a.salary_max || 0));
+    } else if (selectedSort === 'newest') {
+      list.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+    }
+    return list;
+  }, [jobs, selectedSort]);
 
   const handleOpenBenchmark = async () => {
     setShowBenchmarkModal(true);
@@ -158,11 +182,11 @@ export default function JobseekerExploreView({ onSelectJob, onOpenApplyModal }: 
   };
 
   const handleResetFilters = () => {
-    setCategoryTech(true);
+    setCategoryTech(false);
     setCategoryDesign(false);
-    setTypeFullTime(true);
+    setTypeFullTime(false);
     setTypeRemote(false);
-    setLocJakarta(true);
+    setLocJakarta(false);
     setSalaryRange('all');
     setUrgentlyHiringOnly(false);
     setSearch('');
@@ -359,7 +383,8 @@ export default function JobseekerExploreView({ onSelectJob, onOpenApplyModal }: 
 
           {/* Job Cards List */}
           <div className="space-y-4">
-            {jobs.map((job) => {
+            {sortedJobs.length > 0 ? (
+              sortedJobs.map((job) => {
               const bookmarked = bookmarkedIds.includes(job.id);
               const tags = job.skills_required
                 ? job.skills_required.split(',').map((t) => t.trim()).slice(0, 4)
@@ -464,7 +489,25 @@ export default function JobseekerExploreView({ onSelectJob, onOpenApplyModal }: 
                   </div>
                 </div>
               );
-            })}
+            })
+          ) : (
+            <div className="p-12 text-center bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 space-y-3">
+              <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center mx-auto">
+                <Search className="w-6 h-6" />
+              </div>
+              <h4 className="text-sm font-bold text-slate-900 dark:text-white">Tidak ada lowongan ditemukan</h4>
+              <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                Coba sesuaikan kata kunci pencarian atau reset filter untuk melihat semua peluang yang tersedia.
+              </p>
+              <button
+                type="button"
+                onClick={handleResetFilters}
+                className="mt-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs cursor-pointer shadow-sm transition-all"
+              >
+                Reset Filter
+              </button>
+            </div>
+          )}
           </div>
 
           {/* Pagination */}

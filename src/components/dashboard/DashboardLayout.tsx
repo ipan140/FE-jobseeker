@@ -6,6 +6,7 @@ import AdminValidationView from './AdminValidationView';
 import AdminJobApprovalsView from './AdminJobApprovalsView';
 import MerchantDashboardView from './MerchantDashboardView';
 import MerchantJobsView from './MerchantJobsView';
+import MerchantTalentsView from './MerchantTalentsView';
 import MerchantProfileView from './MerchantProfileView';
 import JobseekerPortal from '../jobseeker/JobseekerPortal';
 
@@ -150,6 +151,9 @@ export default function DashboardLayout() {
           {activeTab === 'merchant-jobs' && (
             <MerchantJobsView onOpenCreateJob={() => setShowCreateJobModal(true)} />
           )}
+
+          {/* View 6.5: Merchant - Pencarian Bakat & Talent Pool */}
+          {activeTab === 'merchant-talents' && <MerchantTalentsView />}
 
           {/* View 7: Merchant - Profil Perusahaan (Image 5 set 2) */}
           {activeTab === 'merchant-profile' && <MerchantProfileView />}

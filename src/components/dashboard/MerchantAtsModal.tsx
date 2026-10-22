@@ -13,13 +13,23 @@ import {
   Mail,
   RefreshCw,
   Sparkles,
-  AlertCircle
+  AlertCircle,
+  Download,
+  BrainCircuit,
+  MessageSquare,
+  HelpCircle,
+  Trophy
 } from 'lucide-react';
 import {
   getJobAtsPipeline,
   updateApplicationStatus,
+  exportJobApplicantsCsv,
+  getApplicantAiSummary,
+  scheduleInterview,
+  makeJobOffer,
   type AtsPipelineResponse,
-  type BackendApplicationItem
+  type BackendApplicationItem,
+  type AICandidateSummaryResponse
 } from '../../lib/api';
 
 interface MerchantAtsModalProps {
@@ -49,6 +59,11 @@ export default function MerchantAtsModal({
   const [activeStage, setActiveStage] = useState<string>('all');
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
+
+  // AI Screening Summary State
+  const [aiSummary, setAiSummary] = useState<AICandidateSummaryResponse | null>(null);
+  const [isLoadingAi, setIsLoadingAi] = useState(false);
 
   const fetchPipeline = async () => {
     setIsLoading(true);
@@ -69,6 +84,29 @@ export default function MerchantAtsModal({
     }
   }, [isOpen, jobId]);
 
+  const handleExportCsv = async () => {
+    setIsExporting(true);
+    try {
+      await exportJobApplicantsCsv(jobId, jobTitle);
+    } catch (err: any) {
+      alert(err.message || 'Gagal mengunduh CSV pelamar.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleLoadAiSummary = async (applicationId: string) => {
+    setIsLoadingAi(true);
+    try {
+      const summary = await getApplicantAiSummary(applicationId);
+      setAiSummary(summary);
+    } catch (err: any) {
+      alert(err.message || 'Gagal membuat ringkasan AI pelamar.');
+    } finally {
+      setIsLoadingAi(false);
+    }
+  };
+
   const handleMoveStage = async (applicationId: string, nextStatus: string) => {
     setUpdatingId(applicationId);
     try {
@@ -76,6 +114,54 @@ export default function MerchantAtsModal({
       await fetchPipeline();
     } catch (err: any) {
       alert(err.message || 'Gagal mengubah status pelamar.');
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  const handleScheduleInterviewClick = async (appId: string) => {
+    const meetLink = prompt('Masukkan Link Google Meet / Zoom Wawancara:', 'meet.google.com/xyz-wuvq-bdr');
+    if (!meetLink) return;
+    const timeStr = prompt('Masukkan Waktu Wawancara (YYYY-MM-DD HH:mm):', '2026-10-25 14:00');
+    if (!timeStr) return;
+
+    setUpdatingId(appId);
+    try {
+      await scheduleInterview(appId, {
+        interview_meeting_link: meetLink,
+        interview_scheduled_at: new Date(timeStr.replace(' ', 'T')).toISOString(),
+        interview_notes: 'Wawancara teknis dan diskusi studi kasus bersama Lead Engineer.',
+      });
+      alert('Jadwal wawancara berhasil ditetapkan! Undangan otomatis masuk ke dasbor pelamar.');
+      await fetchPipeline();
+    } catch (err: any) {
+      alert(err.message || 'Gagal menjadwalkan wawancara.');
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  const handleMakeOfferClick = async (appId: string) => {
+    const salaryStr = prompt('Masukkan Nominal Gaji Bersih/Kotor Bulanan (Rp):', '18000000');
+    if (!salaryStr) return;
+    const salary = parseInt(salaryStr, 10);
+    if (isNaN(salary) || salary <= 0) {
+      alert('Nominal gaji tidak valid.');
+      return;
+    }
+    const startDate = prompt('Perkiraan Tanggal Mulai Bekerja (YYYY-MM-DD):', '2026-11-01') || '2026-11-01';
+
+    setUpdatingId(appId);
+    try {
+      await makeJobOffer(appId, {
+        offered_salary: salary,
+        offer_start_date: startDate,
+        offer_notes: 'Paket remunerasi: Gaji bulanan, BPJS Ketenagakerjaan & Kesehatan, asuransi jiwa, dan tunjangan kerja fleksibel.',
+      });
+      alert(`Surat penawaran kerja (Offering Letter: Rp ${salary.toLocaleString('id-ID')}) resmi terkirim!`);
+      await fetchPipeline();
+    } catch (err: any) {
+      alert(err.message || 'Gagal membuat surat penawaran kerja.');
     } finally {
       setUpdatingId(null);
     }
@@ -115,6 +201,16 @@ export default function MerchantAtsModal({
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleExportCsv}
+              disabled={isExporting}
+              className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              title="Unduh daftar pelamar ke format CSV"
+            >
+              <Download className="w-3.5 h-3.5 text-blue-600" />
+              <span>{isExporting ? 'Mengunduh...' : 'Ekspor CSV'}</span>
+            </button>
             <button
               type="button"
               onClick={fetchPipeline}
@@ -238,9 +334,9 @@ export default function MerchantAtsModal({
                           )}
                         </div>
 
-                        {/* Resume Link */}
-                        {app.resume_url && (
-                          <div className="mt-3">
+                        {/* Resume & AI Screening Action */}
+                        <div className="mt-3 flex items-center gap-2">
+                          {app.resume_url ? (
                             <a
                               href={app.resume_url}
                               target="_blank"
@@ -248,10 +344,23 @@ export default function MerchantAtsModal({
                               className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-300 text-[11px] font-bold hover:underline"
                             >
                               <FileText className="w-3.5 h-3.5" />
-                              <span>Lihat Resume CV</span>
+                              <span>Lihat CV</span>
                             </a>
-                          </div>
-                        )}
+                          ) : (
+                            <span className="text-[10px] text-slate-400">CV Profil Digital</span>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => handleLoadAiSummary(app.id)}
+                            disabled={isLoadingAi}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 text-[11px] font-bold hover:bg-indigo-100 transition-colors cursor-pointer"
+                            title="Analisis kecocokan profil pelamar dengan AI"
+                          >
+                            <Sparkles className="w-3 h-3 text-indigo-500" />
+                            <span>AI Summary</span>
+                          </button>
+                        </div>
                       </div>
 
                       {/* Move Stage Actions */}
@@ -274,20 +383,22 @@ export default function MerchantAtsModal({
                             <button
                               type="button"
                               disabled={updatingId === app.id}
-                              onClick={() => handleMoveStage(app.id, 'interview')}
+                              onClick={() => handleScheduleInterviewClick(app.id)}
                               className="px-2 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 text-[10px] font-bold cursor-pointer"
+                              title="Jadwalkan wawancara dan tentukan link pertemuan"
                             >
-                              Interview
+                              Jadwal Interview
                             </button>
                           )}
                           {app.status !== 'offered' && (
                             <button
                               type="button"
                               disabled={updatingId === app.id}
-                              onClick={() => handleMoveStage(app.id, 'offered')}
+                              onClick={() => handleMakeOfferClick(app.id)}
                               className="px-2 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 text-[10px] font-bold cursor-pointer"
+                              title="Terbitkan Surat Penawaran Kerja (Offering Letter)"
                             >
-                              Offering
+                              Buat Offer
                             </button>
                           )}
                           {app.status !== 'accepted' && (
@@ -318,6 +429,112 @@ export default function MerchantAtsModal({
             </div>
           )}
         </div>
+
+        {/* AI Candidate Summary Modal Overlay */}
+        {aiSummary && (
+          <div className="fixed inset-0 z-60 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl w-full max-w-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[85vh]">
+              {/* Header */}
+              <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-950/40 dark:to-purple-950/40">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center">
+                    <Sparkles className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-black text-slate-900 dark:text-white">
+                      AI Screening: {aiSummary.candidate_name}
+                    </h4>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Evaluasi kesesuaian posisi {aiSummary.job_title}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAiSummary(null)}
+                  className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-5 overflow-y-auto space-y-4 text-xs">
+                {/* Score & Verdict */}
+                <div className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700">
+                  <div>
+                    <span className="text-[10px] text-slate-400 uppercase font-bold block">Hasil Keputusan AI</span>
+                    <span className="text-sm font-black text-indigo-600 dark:text-indigo-400">
+                      {aiSummary.match_verdict}
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[10px] text-slate-400 uppercase font-bold block">Skor Match</span>
+                    <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
+                      {aiSummary.overall_score}%
+                    </span>
+                  </div>
+                </div>
+
+                {/* Key Strengths */}
+                {aiSummary.key_strengths && aiSummary.key_strengths.length > 0 && (
+                  <div>
+                    <h5 className="font-extrabold text-slate-900 dark:text-white mb-1.5 flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                      <span>Kekuatan Utama (Key Strengths)</span>
+                    </h5>
+                    <ul className="space-y-1 list-disc list-inside text-slate-600 dark:text-slate-300">
+                      {aiSummary.key_strengths.map((str, idx) => (
+                        <li key={idx}>{str}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Potential Gaps */}
+                {aiSummary.potential_gaps && aiSummary.potential_gaps.length > 0 && (
+                  <div>
+                    <h5 className="font-extrabold text-slate-900 dark:text-white mb-1.5 flex items-center gap-1.5">
+                      <AlertCircle className="w-3.5 h-3.5 text-amber-500" />
+                      <span>Catatan Pertimbangan (Potential Gaps)</span>
+                    </h5>
+                    <ul className="space-y-1 list-disc list-inside text-slate-600 dark:text-slate-300">
+                      {aiSummary.potential_gaps.map((gap, idx) => (
+                        <li key={idx}>{gap}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Recommended Interview Questions */}
+                {aiSummary.recommended_interview_questions && aiSummary.recommended_interview_questions.length > 0 && (
+                  <div className="p-3 rounded-2xl bg-blue-50/60 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900">
+                    <h5 className="font-extrabold text-blue-900 dark:text-blue-300 mb-1.5 flex items-center gap-1.5">
+                      <HelpCircle className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                      <span>Rekomendasi Pertanyaan Wawancara AI</span>
+                    </h5>
+                    <ol className="space-y-1.5 list-decimal list-inside text-blue-800 dark:text-blue-200/90 text-[11px]">
+                      {aiSummary.recommended_interview_questions.map((q, idx) => (
+                        <li key={idx}>{q}</li>
+                      ))}
+                    </ol>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="p-3 border-t border-slate-100 dark:border-slate-800 text-right bg-slate-50 dark:bg-slate-800/40">
+                <button
+                  type="button"
+                  onClick={() => setAiSummary(null)}
+                  className="px-4 py-2 rounded-xl bg-slate-900 text-white dark:bg-white dark:text-slate-900 text-xs font-bold cursor-pointer"
+                >
+                  Tutup Ringkasan
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

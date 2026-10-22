@@ -5,7 +5,6 @@ import {
   LogOut,
   Sun,
   Moon,
-  PawPrint,
   ArrowRightLeft,
   LogIn,
   UserPlus,
@@ -25,8 +24,8 @@ import {
 } from '../../lib/api';
 
 export interface JobseekerNavbarProps {
-  activeTab: 'dashboard' | 'explore' | 'job-detail' | 'applications' | 'profile' | 'profile-edit' | 'zen';
-  onSelectTab: (tab: 'dashboard' | 'explore' | 'job-detail' | 'applications' | 'profile' | 'profile-edit' | 'zen') => void;
+  activeTab: 'dashboard' | 'explore' | 'job-detail' | 'applications' | 'profile' | 'profile-edit';
+  onSelectTab: (tab: 'dashboard' | 'explore' | 'job-detail' | 'applications' | 'profile' | 'profile-edit') => void;
   onSwitchToConsole?: (role: 'admin' | 'merchant') => void;
   isAuthenticated?: boolean;
   userName?: string;
@@ -196,20 +195,6 @@ export default function JobseekerNavbar({
               }`}
             >
               Profil Saya
-            </button>
-
-            {/* Combined Zen Corner Tab (Preserving Image 5) */}
-            <button
-              type="button"
-              onClick={() => onSelectTab('zen')}
-              className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
-                activeTab === 'zen'
-                  ? 'bg-pink-100 text-pink-700 dark:bg-pink-950/60 dark:text-pink-300 font-extrabold border border-pink-300'
-                  : 'text-pink-600 dark:text-pink-400 hover:bg-pink-50 dark:hover:bg-pink-950/40'
-              }`}
-            >
-              <PawPrint className="w-3.5 h-3.5" />
-              <span>Zen Corner 🐱</span>
             </button>
           </nav>
         </div>

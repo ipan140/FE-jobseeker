@@ -6,9 +6,9 @@ import JobseekerJobDetailView from './JobseekerJobDetailView';
 import JobseekerApplicationsView from './JobseekerApplicationsView';
 import JobseekerProfileView from './JobseekerProfileView';
 import JobseekerProfileEditView from './JobseekerProfileEditView';
-import JobseekerZenView from './JobseekerZenView';
 import JobApplicationModal from './JobApplicationModal';
 import AuthRequiredModal from './AuthRequiredModal';
+import ChatWidget from '../chat/ChatWidget';
 import { authStorage } from '../../lib/auth';
 
 export type JobseekerTab =
@@ -17,8 +17,7 @@ export type JobseekerTab =
   | 'job-detail'
   | 'applications'
   | 'profile'
-  | 'profile-edit'
-  | 'zen';
+  | 'profile-edit';
 
 export interface JobseekerPortalProps {
   onSwitchToConsole?: (role: 'admin' | 'merchant') => void;
@@ -30,9 +29,10 @@ export default function JobseekerPortal({
   initialTab = 'dashboard',
 }: JobseekerPortalProps) {
   const [activeTab, setActiveTab] = useState<JobseekerTab>(initialTab);
-  const [selectedJobId, setSelectedJobId] = useState<string>('c4b338a0-4205-4b08-894f-6d12981a96dd');
-  const [selectedJobTitle, setSelectedJobTitle] = useState('Senior Frontend Engineer (React/Next.js)');
-  const [selectedCompany, setSelectedCompany] = useState('PT Solusi Teknologi Nusantara');
+  const [selectedJobId, setSelectedJobId] = useState<string>('');
+  const [selectedJobTitle, setSelectedJobTitle] = useState('');
+  const [selectedCompany, setSelectedCompany] = useState('');
+  const [exploreSearchQuery, setExploreSearchQuery] = useState('');
   const [isApplyModalOpen, setIsApplyModalOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -118,8 +118,10 @@ export default function JobseekerPortal({
           <JobseekerDashboardView
             onSelectJob={handleSelectJob}
             onOpenApplyModal={handleOpenApplyModal}
-            onNavigateToExplore={() => handleTabChange('explore')}
-            onNavigateToZen={() => handleTabChange('zen')}
+            onNavigateToExplore={(keyword?: string) => {
+              if (keyword !== undefined) setExploreSearchQuery(keyword);
+              handleTabChange('explore');
+            }}
             onNavigateToApplications={() => handleTabChange('applications')}
             onNavigateToProfile={() => handleTabChange('profile')}
             isAuthenticated={isAuthenticated}
@@ -131,6 +133,7 @@ export default function JobseekerPortal({
         {/* View 2: Cari Lowongan / Eksplorasi Peluang Karier (Image 2 of Set 3) */}
         {activeTab === 'explore' && (
           <JobseekerExploreView
+            initialSearch={exploreSearchQuery}
             onSelectJob={handleSelectJob}
             onOpenApplyModal={handleOpenApplyModal}
           />
@@ -166,9 +169,6 @@ export default function JobseekerPortal({
             onSaveSuccess={() => handleTabChange('profile')}
           />
         )}
-
-        {/* View 7: Zen with a Cat (Image 5 of Set 3 - Preserved & Interactive) */}
-        {activeTab === 'zen' && <JobseekerZenView />}
       </main>
 
       {/* Auth Modal: Prompt Login when user wants to Apply */}
@@ -192,6 +192,9 @@ export default function JobseekerPortal({
         jobTitle={selectedJobTitle}
         companyName={selectedCompany}
       />
+
+      {/* Floating HR Chat Widget */}
+      <ChatWidget />
     </div>
   );
 }

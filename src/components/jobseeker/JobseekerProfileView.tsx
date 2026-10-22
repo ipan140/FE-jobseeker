@@ -21,7 +21,7 @@ import {
   Building2,
   Loader2
 } from 'lucide-react';
-import { getMyJobseekerProfile, type JobseekerFullProfile } from '../../lib/api';
+import { getMyJobseekerProfile, downloadMyResumePdf, type JobseekerFullProfile } from '../../lib/api';
 import { authStorage } from '../../lib/auth';
 
 export interface JobseekerProfileProps {
@@ -31,6 +31,7 @@ export interface JobseekerProfileProps {
 export default function JobseekerProfileView({ onEditProfile }: JobseekerProfileProps) {
   const [profile, setProfile] = useState<JobseekerFullProfile | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
 
   useEffect(() => {
     if (authStorage.isAuthenticated()) {
@@ -43,6 +44,22 @@ export default function JobseekerProfileView({ onEditProfile }: JobseekerProfile
         .finally(() => setIsLoading(false));
     }
   }, []);
+
+  const handleDownloadPdf = async () => {
+    setIsDownloadingPdf(true);
+    try {
+      await downloadMyResumePdf();
+    } catch {
+      // Fallback: If no generated PDF endpoint, open resume_url
+      if (profile?.resume_url) {
+        window.open(profile.resume_url, '_blank');
+      } else {
+        alert('Gagal mengunduh resume PDF.');
+      }
+    } finally {
+      setIsDownloadingPdf(false);
+    }
+  };
 
   const sessionUser = authStorage.getUser();
   const displayName = profile?.full_name || sessionUser?.full_name || 'Budi Santoso, S.Kom';
@@ -440,15 +457,15 @@ export default function JobseekerProfileView({ onEditProfile }: JobseekerProfile
                 <span>Ganti CV</span>
               </button>
 
-              <a
-                href={profile?.resume_url || '#'}
-                target="_blank"
-                rel="noreferrer"
-                className="py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
+              <button
+                type="button"
+                onClick={handleDownloadPdf}
+                disabled={isDownloadingPdf}
+                className="py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-50"
               >
                 <Download className="w-3.5 h-3.5" />
-                <span>Unduh CV</span>
-              </a>
+                <span>{isDownloadingPdf ? 'Mengunduh...' : 'Unduh ATS PDF'}</span>
+              </button>
             </div>
           </div>
 

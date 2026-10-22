@@ -1106,6 +1106,224 @@ export async function getJobAtsPipeline(jobId: string): Promise<AtsPipelineRespo
   return await res.json();
 }
 
+export interface AICandidateSummaryResponse {
+  application_id: string;
+  candidate_name: string;
+  job_title: string;
+  match_verdict: string;
+  overall_score: number;
+  key_strengths: string[];
+  potential_gaps: string[];
+  recommended_interview_questions: string[];
+}
+
+export async function getApplicantAiSummary(applicationId: string): Promise<AICandidateSummaryResponse> {
+  const token = authStorage.getToken();
+  if (!token) throw new Error('Harap masuk sebagai Perusahaan.');
+
+  const res = await fetch(`${API_BASE}/applicants/applications/${applicationId}/ai-summary`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.detail || 'Gagal menghasilkan ringkasan AI.');
+  return data;
+}
+
+export async function exportJobApplicantsCsv(jobId: string, jobTitle = 'lowongan'): Promise<void> {
+  const token = authStorage.getToken();
+  if (!token) throw new Error('Harap login sebagai Perusahaan.');
+
+  const res = await fetch(`${API_BASE}/applicants/jobs/${jobId}/export-csv`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!res.ok) throw new Error('Gagal mengunduh CSV pelamar.');
+
+  const blob = await res.blob();
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `Pelamar-${jobTitle.replace(/[^a-zA-Z0-9]/g, '_')}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  window.URL.revokeObjectURL(url);
+  document.body.removeChild(a);
+}
+
+export async function downloadMyResumePdf(): Promise<void> {
+  const token = authStorage.getToken();
+  if (!token) throw new Error('Harap masuk terlebih dahulu.');
+
+  const res = await fetch(`${API_BASE}/applicants/me/resume/pdf`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!res.ok) throw new Error('Gagal mengunduh PDF Resume ATS.');
+
+  const blob = await res.blob();
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `Resume_ATS_CareerFlow.pdf`;
+  document.body.appendChild(a);
+  a.click();
+  window.URL.revokeObjectURL(url);
+  document.body.removeChild(a);
+}
+
+export async function withdrawApplication(applicationId: string, reason?: string): Promise<any> {
+  const token = authStorage.getToken();
+  if (!token) throw new Error('Harap masuk terlebih dahulu.');
+
+  const res = await fetch(`${API_BASE}/applicants/applications/${applicationId}/withdraw`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ reason: reason || 'Kandidat membatalkan lamaran secara mandiri' }),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.detail || 'Gagal membatalkan lamaran.');
+  return data;
+}
+
+export async function scheduleInterview(
+  applicationId: string,
+  payload: { interview_scheduled_at: string; interview_meeting_link: string; interview_notes?: string }
+): Promise<any> {
+  const token = authStorage.getToken();
+  if (!token) throw new Error('Harap login sebagai Perusahaan.');
+
+  const res = await fetch(`${API_BASE}/applicants/applications/${applicationId}/schedule-interview`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.detail || 'Gagal menjadwalkan wawancara.');
+  return data;
+}
+
+export async function makeJobOffer(
+  applicationId: string,
+  payload: { offered_salary: number; offer_start_date: string; offer_notes?: string; offer_letter_url?: string }
+): Promise<any> {
+  const token = authStorage.getToken();
+  if (!token) throw new Error('Harap login sebagai Perusahaan.');
+
+  const res = await fetch(`${API_BASE}/applicants/applications/${applicationId}/make-offer`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.detail || 'Gagal membuat surat penawaran kerja.');
+  return data;
+}
+
+export async function respondJobOffer(
+  applicationId: string,
+  payload: { action: 'accept' | 'decline'; response_notes?: string }
+): Promise<any> {
+  const token = authStorage.getToken();
+  if (!token) throw new Error('Harap masuk terlebih dahulu.');
+
+  const res = await fetch(`${API_BASE}/applicants/applications/${applicationId}/respond-offer`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.detail || 'Gagal merespons penawaran kerja.');
+  return data;
+}
+
+export interface TalentItem {
+  id: string;
+  user_id: string;
+  full_name: string;
+  headline?: string;
+  city?: string;
+  skills?: string[];
+  open_to_work?: boolean;
+  avatar_url?: string;
+  resume_url?: string;
+}
+
+export async function searchTalents(params: {
+  query?: string;
+  city?: string;
+  skill?: string;
+  page?: number;
+  limit?: number;
+}): Promise<{ items: TalentItem[]; total_items: number; page: number; total_pages: number }> {
+  const token = authStorage.getToken();
+  if (!token) return { items: [], total_items: 0, page: 1, total_pages: 0 };
+
+  const queryParams = new URLSearchParams();
+  if (params.query) queryParams.set('query', params.query);
+  if (params.city) queryParams.set('city', params.city);
+  if (params.skill) queryParams.set('skill', params.skill);
+  if (params.page) queryParams.set('page', params.page.toString());
+  if (params.limit) queryParams.set('limit', params.limit.toString());
+
+  try {
+    const res = await fetch(`${API_BASE}/applicants/talents/search?${queryParams.toString()}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (!res.ok) return { items: [], total_items: 0, page: 1, total_pages: 0 };
+    return await res.json();
+  } catch {
+    return { items: [], total_items: 0, page: 1, total_pages: 0 };
+  }
+}
+
+export async function inviteTalentToJob(payload: {
+  jobseeker_id: string;
+  job_id: string;
+  invitation_message?: string;
+}): Promise<any> {
+  const token = authStorage.getToken();
+  if (!token) throw new Error('Harap login sebagai Perusahaan.');
+
+  const res = await fetch(`${API_BASE}/applicants/talents/invite`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.detail || 'Gagal mengirim undangan melamar.');
+  return data;
+}
+
 // ==========================================================
 // 13. ASSESSMENTS / SKILL TEST (Swagger: /assessments)
 // ==========================================================

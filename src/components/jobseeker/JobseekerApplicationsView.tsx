@@ -14,7 +14,7 @@ import {
   User,
   AlertCircle
 } from 'lucide-react';
-import { getMyApplications, type BackendApplicationItem } from '../../lib/api';
+import { getMyApplications, withdrawApplication, respondJobOffer, type BackendApplicationItem } from '../../lib/api';
 
 interface ApplicationItem {
   id: string;
@@ -110,9 +110,10 @@ const SAMPLE_APPLICATIONS: ApplicationItem[] = [
 ];
 
 export default function JobseekerApplicationsView() {
-  const [applications, setApplications] = useState<ApplicationItem[]>(SAMPLE_APPLICATIONS);
-  const [selectedApp, setSelectedApp] = useState<ApplicationItem>(SAMPLE_APPLICATIONS[0]);
+  const [applications, setApplications] = useState<ApplicationItem[]>([]);
+  const [selectedApp, setSelectedApp] = useState<ApplicationItem | null>(null);
   const [statusFilter, setStatusFilter] = useState<'all' | 'in_progress' | 'interview' | 'accepted' | 'rejected'>('all');
+  const [isLoading, setIsLoading] = useState<boolean>(true);
 
   useEffect(() => {
     getMyApplications(1, 20)
@@ -142,12 +143,87 @@ export default function JobseekerApplicationsView() {
             } : undefined,
           }));
 
-          setApplications([...mapped, ...SAMPLE_APPLICATIONS]);
+          setApplications(mapped);
           setSelectedApp(mapped[0]);
+        } else {
+          setApplications([]);
+          setSelectedApp(null);
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        setApplications([]);
+        setSelectedApp(null);
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
   }, []);
+
+  const handleWithdraw = async () => {
+    if (!selectedApp) return;
+    const reason = prompt('Masukkan alasan Anda membatalkan lamaran ini (opsional):', 'Telah menerima penawaran kerja lain');
+    if (reason === null) return;
+    try {
+      await withdrawApplication(selectedApp.id, reason);
+      alert('Lamaran berhasil ditarik/dibatalkan.');
+      setApplications((prev) =>
+        prev.map((app) =>
+          app.id === selectedApp.id
+            ? { ...app, status: 'rejected', statusLabel: 'Dibatalkan Mandiri', statusClass: 'bg-rose-50 text-rose-700 border border-rose-200' }
+            : app
+        )
+      );
+      setSelectedApp((prev) =>
+        prev ? { ...prev, status: 'rejected', statusLabel: 'Dibatalkan Mandiri', statusClass: 'bg-rose-50 text-rose-700 border border-rose-200' } : prev
+      );
+    } catch (err: any) {
+      alert(err.message || 'Gagal membatalkan lamaran.');
+    }
+  };
+
+  const handleRespondOffer = async (action: 'accept' | 'decline') => {
+    if (!selectedApp) return;
+    const confirmText = action === 'accept'
+      ? 'Selamat! Apakah Anda yakin ingin MENERIMA penawaran kerja resmi ini?'
+      : 'Apakah Anda yakin ingin MENOLAK penawaran kerja ini?';
+    if (!confirm(confirmText)) return;
+
+    try {
+      await respondJobOffer(selectedApp.id, {
+        action,
+        response_notes: action === 'accept' ? 'Kandidat menerima penawaran kerja dan siap bergabung!' : 'Kandidat menolak penawaran kerja',
+      });
+      alert(action === 'accept' ? '🎉 Selamat! Anda telah resmi menerima penawaran kerja ini.' : 'Anda telah menolak penawaran kerja ini.');
+      setApplications((prev) =>
+        prev.map((app) =>
+          app.id === selectedApp.id
+            ? {
+                ...app,
+                status: action === 'accept' ? 'accepted' : 'rejected',
+                statusLabel: action === 'accept' ? 'Diterima (Hired)' : 'Offer Ditolak',
+                statusClass: action === 'accept'
+                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                  : 'bg-rose-50 text-rose-700 border border-rose-200'
+              }
+            : app
+        )
+      );
+      setSelectedApp((prev) =>
+        prev
+          ? {
+              ...prev,
+              status: action === 'accept' ? 'accepted' : 'rejected',
+              statusLabel: action === 'accept' ? 'Diterima (Hired)' : 'Offer Ditolak',
+              statusClass: action === 'accept'
+                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                : 'bg-rose-50 text-rose-700 border border-rose-200'
+            }
+          : prev
+      );
+    } catch (err: any) {
+      alert(err.message || 'Gagal merespons penawaran kerja.');
+    }
+  };
 
   const filteredApplications = applications.filter((app) => {
     if (statusFilter === 'all') return true;
@@ -258,95 +334,113 @@ export default function JobseekerApplicationsView() {
       </div>
 
       {/* Main Split Layout: Left Applications List + Right Stepper Timeline Detail */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        
-        {/* Left Column: Daftar Pengajuan */}
-        <div className="lg:col-span-5 space-y-4">
-          <div className="flex items-center justify-between text-xs">
-            <h3 className="font-extrabold text-slate-900 dark:text-white">Daftar Pengajuan</h3>
-            <span className="text-slate-400">Menampilkan {filteredApplications.length} dari {applications.length} lamaran</span>
+      {isLoading ? (
+        <div className="p-12 text-center bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 text-slate-400 text-xs flex flex-col items-center gap-2">
+          <RotateCw className="w-5 h-5 animate-spin text-blue-600" />
+          <span>Memuat data lamaran Anda dari server...</span>
+        </div>
+      ) : applications.length === 0 ? (
+        <div className="p-12 text-center bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 space-y-4">
+          <div className="w-16 h-16 rounded-2xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 flex items-center justify-center mx-auto shadow-sm">
+            <Send className="w-7 h-7" />
           </div>
-
-          <div className="space-y-3">
-            {filteredApplications.map((item) => {
-              const isSelected = selectedApp.id === item.id;
-              return (
-                <div
-                  key={item.id}
-                  onClick={() => setSelectedApp(item)}
-                  className={`p-4 sm:p-5 rounded-3xl border transition-all cursor-pointer flex flex-col justify-between ${
-                    isSelected
-                      ? 'bg-white dark:bg-slate-900 border-blue-600 dark:border-blue-500 shadow-md ring-2 ring-blue-600/10'
-                      : 'bg-white dark:bg-slate-900 border-slate-200/80 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 shadow-xs'
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={`w-11 h-11 rounded-2xl ${item.companyTagBg} font-black text-xs flex items-center justify-center shrink-0 shadow-xs`}
-                      >
-                        {item.companyTag}
-                      </div>
-                      <div>
-                        <h4 className="text-sm font-extrabold text-slate-900 dark:text-white leading-tight">
-                          {item.jobTitle}
-                        </h4>
-                        <span className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 block">
-                          {item.companyName}
-                        </span>
-                      </div>
-                    </div>
-
-                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${item.statusClass}`}>
-                      ● {item.statusLabel}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800 mt-3 text-xs">
-                    <span className="text-slate-400 text-[11px] flex items-center gap-1">
-                      <Calendar className="w-3.5 h-3.5" />
-                      {item.appliedDate}
-                    </span>
-
-                    <span className="font-bold text-blue-600 dark:text-blue-400 text-[11px] flex items-center gap-1">
-                      {isSelected ? 'Sedang Ditinjau' : 'Lihat Detail'}
-                      <ChevronRight className="w-3.5 h-3.5" />
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
+          <div>
+            <h3 className="text-base font-extrabold text-slate-900 dark:text-white">Belum Ada Lamaran Aktif</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-md mx-auto">
+              Anda belum mengirimkan lamaran pekerjaan. Jelajahi puluhan lowongan kerja terverifikasi dan kirimkan lamaran Anda hari ini!
+            </p>
           </div>
         </div>
-
-        {/* Right Column: Progres Tahapan Rekrutmen (Steppers & HR Note) */}
-        <div className="lg:col-span-7 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm p-6 sm:p-8 space-y-6">
-          {/* Header Info */}
-          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 pb-5 border-b border-slate-100 dark:border-slate-800">
-            <div>
-              <div className="flex items-center gap-2 mb-1.5">
-                <span className="text-xs font-mono font-bold text-slate-400">
-                  ID LAMARAN: {selectedApp.appCode}
-                </span>
-                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${selectedApp.statusClass}`}>
-                  Tahap {selectedApp.statusLabel}
-                </span>
-              </div>
-              <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-                {selectedApp.jobTitle}
-              </h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                {selectedApp.companyName} • {selectedApp.location}
-              </p>
+      ) : selectedApp ? (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          
+          {/* Left Column: Daftar Pengajuan */}
+          <div className="lg:col-span-5 space-y-4">
+            <div className="flex items-center justify-between text-xs">
+              <h3 className="font-extrabold text-slate-900 dark:text-white">Daftar Pengajuan</h3>
+              <span className="text-slate-400">Menampilkan {filteredApplications.length} dari {applications.length} lamaran</span>
             </div>
 
-            <div className="text-left sm:text-right text-xs">
-              <span className="text-slate-400 block text-[10px]">Diajukan Pada</span>
-              <span className="font-extrabold text-slate-900 dark:text-white">
-                {selectedApp.appliedDate}
-              </span>
+            <div className="space-y-3">
+              {filteredApplications.map((item) => {
+                const isSelected = selectedApp?.id === item.id;
+                return (
+                  <div
+                    key={item.id}
+                    onClick={() => setSelectedApp(item)}
+                    className={`p-4 sm:p-5 rounded-3xl border transition-all cursor-pointer flex flex-col justify-between ${
+                      isSelected
+                        ? 'bg-white dark:bg-slate-900 border-blue-600 dark:border-blue-500 shadow-md ring-2 ring-blue-600/10'
+                        : 'bg-white dark:bg-slate-900 border-slate-200/80 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 shadow-xs'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={`w-11 h-11 rounded-2xl ${item.companyTagBg} font-black text-xs flex items-center justify-center shrink-0 shadow-xs`}
+                        >
+                          {item.companyTag}
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-extrabold text-slate-900 dark:text-white leading-tight">
+                            {item.jobTitle}
+                          </h4>
+                          <span className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 block">
+                            {item.companyName}
+                          </span>
+                        </div>
+                      </div>
+
+                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${item.statusClass}`}>
+                        ● {item.statusLabel}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800 mt-3 text-xs">
+                      <span className="text-slate-400 text-[11px] flex items-center gap-1">
+                        <Calendar className="w-3.5 h-3.5" />
+                        {item.appliedDate}
+                      </span>
+
+                      <span className="font-bold text-blue-600 dark:text-blue-400 text-[11px] flex items-center gap-1">
+                        {isSelected ? 'Sedang Ditinjau' : 'Lihat Detail'}
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
+
+          {/* Right Column: Progres Tahapan Rekrutmen (Steppers & HR Note) */}
+          <div className="lg:col-span-7 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm p-6 sm:p-8 space-y-6">
+            {/* Header Info */}
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 pb-5 border-b border-slate-100 dark:border-slate-800">
+              <div>
+                <div className="flex items-center gap-2 mb-1.5">
+                  <span className="text-xs font-mono font-bold text-slate-400">
+                    ID LAMARAN: {selectedApp.appCode}
+                  </span>
+                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${selectedApp.statusClass}`}>
+                    Tahap {selectedApp.statusLabel}
+                  </span>
+                </div>
+                <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+                  {selectedApp.jobTitle}
+                </h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  {selectedApp.companyName} • {selectedApp.location}
+                </p>
+              </div>
+
+              <div className="text-left sm:text-right text-xs">
+                <span className="text-slate-400 block text-[10px]">Diajukan Pada</span>
+                <span className="font-extrabold text-slate-900 dark:text-white">
+                  {selectedApp.appliedDate}
+                </span>
+              </div>
+            </div>
 
           {/* Stepper Timeline: Progres Tahapan Rekrutmen */}
           <div className="space-y-4">
@@ -460,6 +554,38 @@ export default function JobseekerApplicationsView() {
                   <p className="text-[11px] text-slate-400 leading-relaxed mt-0.5">
                     Keputusan penawaran gaji resmi (Offering Letter) dan kesepakatan kontrak kerja setelah evaluasi hasil wawancara komprehensif.
                   </p>
+
+                  {/* Offering Decision Card */}
+                  <div className="mt-3 p-3.5 bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/40 dark:to-teal-950/40 rounded-xl border border-emerald-300 dark:border-emerald-800 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-extrabold text-emerald-900 dark:text-emerald-300 text-xs flex items-center gap-1.5">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                        <span>Surat Penawaran Kerja (Offering Letter) Diterbitkan</span>
+                      </span>
+                      <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-200 dark:bg-emerald-900 text-emerald-900 dark:text-emerald-200">
+                        Rp 18.000.000 / bln
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-emerald-800 dark:text-emerald-200">
+                      Perusahaan telah mengajukan penawaran kerja resmi. Silakan tinjau dan tentukan keputusan Anda.
+                    </p>
+                    <div className="flex items-center gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => handleRespondOffer('accept')}
+                        className="py-1.5 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs cursor-pointer"
+                      >
+                        ✓ Terima Penawaran
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleRespondOffer('decline')}
+                        className="py-1.5 px-3 rounded-lg border border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-300 hover:bg-rose-50 text-xs font-semibold cursor-pointer"
+                      >
+                        ✕ Tolak
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -502,6 +628,15 @@ export default function JobseekerApplicationsView() {
             <div className="flex items-center gap-2">
               <button
                 type="button"
+                onClick={handleWithdraw}
+                className="py-2.5 px-3 rounded-xl border border-rose-200 dark:border-rose-900/60 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors"
+                title="Batalkan lamaran ini jika sudah diterima di tempat lain"
+              >
+                <span>Tarik Lamaran</span>
+              </button>
+
+              <button
+                type="button"
                 className="py-2.5 px-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
               >
                 <MessageSquare className="w-4 h-4 text-slate-400" />
@@ -520,8 +655,8 @@ export default function JobseekerApplicationsView() {
             </div>
           </div>
         </div>
-
       </div>
-    </div>
+    ) : null}
+  </div>
   );
 }

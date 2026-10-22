@@ -25,6 +25,7 @@ export type ActiveTabType =
   | 'admin-job-approvals'
   | 'merchant-dashboard'
   | 'merchant-jobs'
+  | 'merchant-talents'
   | 'merchant-profile';
 
 export type ConsoleMode = 'jobseeker' | 'admin' | 'merchant';
@@ -306,6 +307,21 @@ export default function Sidebar({
             >
               <Briefcase className="w-4 h-4 shrink-0" />
               {!isCollapsed && <span>Lowongan Saya</span>}
+            </button>
+
+            {/* Pencarian Bakat / Talent Pool */}
+            <button
+              type="button"
+              onClick={() => onSelectTab('merchant-talents')}
+              className={`w-full flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                activeTab === 'merchant-talents'
+                  ? 'bg-white/20 text-white shadow-sm'
+                  : 'text-blue-100/70 hover:text-white hover:bg-white/10'
+              } ${isCollapsed ? 'justify-center px-0 h-11 w-11 mx-auto' : ''}`}
+              title={isCollapsed ? 'Pencarian Bakat' : undefined}
+            >
+              <Users className="w-4 h-4 shrink-0" />
+              {!isCollapsed && <span>Pencarian Bakat</span>}
             </button>
 
             {/* Profil Perusahaan (Image 5) */}
