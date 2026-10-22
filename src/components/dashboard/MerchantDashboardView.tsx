@@ -48,6 +48,7 @@ export default function MerchantDashboardView({
         if (res && res.items && res.items.length > 0) {
           setRecentJobs(res.items);
         } else {
+          // If company has not posted jobs yet, fetch company or public preview
           getJobs({ limit: 5 })
             .then((pj) => setRecentJobs(pj.items || []))
             .catch(() => {});
@@ -61,23 +62,21 @@ export default function MerchantDashboardView({
       .finally(() => setIsLoading(false));
   }, []);
 
-  const totalActiveJobs = analytics?.active_jobs ?? (recentJobs.length || 12);
-  const totalApplicants = analytics?.total_applications ?? 846;
-  const pendingCount = analytics?.pipeline_funnel?.screening ?? 3;
+  const totalActiveJobs = analytics?.active_jobs ?? recentJobs.length;
+  const totalApplicants = analytics?.total_applications ?? 0;
+  const pendingCount = analytics?.pipeline_funnel?.screening ?? 0;
 
   const chartData = recentJobs.length > 0
-    ? recentJobs.slice(0, 5).map((job, idx) => ({
-        label: job.title.split(' ').slice(0, 2).join(' '),
-        count: (job.views_count || 1) * (15 - idx * 2),
-        heightPercent: Math.max(30, Math.min(95, 85 - idx * 12)),
-      }))
-    : [
-        { label: 'Fullstack Dev', count: 248, heightPercent: 85 },
-        { label: 'UI/UX Lead', count: 192, heightPercent: 68 },
-        { label: 'Product Mgr', count: 165, heightPercent: 58 },
-        { label: 'DevOps Eng', count: 138, heightPercent: 48 },
-        { label: 'QA Autom.', count: 104, heightPercent: 38 },
-      ];
+    ? recentJobs.slice(0, 5).map((job) => {
+        const views = job.views_count || 10;
+        const clicks = job.clicks_count || Math.round(views * 0.3);
+        return {
+          label: job.title.split(' ').slice(0, 2).join(' '),
+          count: clicks,
+          heightPercent: Math.max(25, Math.min(100, Math.round((clicks / 150) * 100))),
+        };
+      })
+    : [];
 
   return (
     <div className="space-y-6">
@@ -207,22 +206,28 @@ export default function MerchantDashboardView({
         </div>
 
         {/* Custom Bar Visualization */}
-        <div className="h-64 flex items-end justify-between gap-4 pt-8 px-4 border-b border-slate-100 dark:border-slate-800">
-          {chartData.map((bar, i) => (
-            <div key={i} className="flex-1 flex flex-col items-center h-full justify-end group">
-              <span className="text-xs font-bold text-slate-600 dark:text-slate-300 mb-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                {bar.count}
-              </span>
-              <div
-                style={{ height: `${bar.heightPercent}%` }}
-                className="w-full max-w-[56px] bg-blue-600 hover:bg-blue-500 rounded-t-xl transition-all duration-300 shadow-md shadow-blue-600/20"
-              />
-              <span className="text-[11px] font-medium text-slate-600 dark:text-slate-400 mt-3 text-center truncate max-w-[80px]">
-                {bar.label}
-              </span>
-            </div>
-          ))}
-        </div>
+        {chartData.length > 0 ? (
+          <div className="h-64 flex items-end justify-between gap-4 pt-8 px-4 border-b border-slate-100 dark:border-slate-800">
+            {chartData.map((bar, i) => (
+              <div key={i} className="flex-1 flex flex-col items-center h-full justify-end group">
+                <span className="text-xs font-bold text-slate-600 dark:text-slate-300 mb-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  {bar.count}
+                </span>
+                <div
+                  style={{ height: `${bar.heightPercent}%` }}
+                  className="w-full max-w-[56px] bg-blue-600 hover:bg-blue-500 rounded-t-xl transition-all duration-300 shadow-md shadow-blue-600/20"
+                />
+                <span className="text-[11px] font-medium text-slate-600 dark:text-slate-400 mt-3 text-center truncate max-w-[80px]">
+                  {bar.label}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="h-44 flex items-center justify-center text-slate-400 text-xs">
+            Belum ada data pelamar. Pasang lowongan baru untuk memantau performa akuisisi kandidat.
+          </div>
+        )}
       </div>
 
       {/* Table Section: Lowongan Terbaru & Status Pelamar */}
@@ -258,35 +263,43 @@ export default function MerchantDashboardView({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {recentJobs.slice(0, 5).map((job, idx) => (
-                <tr key={job.id || idx} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
-                  <td className="py-3.5 px-4">
-                    <div className="font-bold text-slate-900 dark:text-white">{job.title}</div>
-                    <span className="text-[10px] font-mono text-slate-400">ID: {job.id.substring(0, 8)}</span>
-                  </td>
-                  <td className="py-3.5 px-3 text-slate-600 dark:text-slate-300">
-                    {job.category || 'Information Technology'}
-                  </td>
-                  <td className="py-3.5 px-3 text-slate-500">
-                    {job.created_at ? new Date(job.created_at).toLocaleDateString('id-ID') : '12 Okt 2024'}
-                  </td>
-                  <td className="py-3.5 px-3">
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                      {job.status === 'DRAFT' ? 'Pending Approval' : 'Aktif Tayang'}
-                    </span>
-                  </td>
-                  <td className="py-3.5 px-4 text-right">
-                    <button
-                      type="button"
-                      onClick={onNavigateToJobs}
-                      className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold cursor-pointer"
-                    >
-                      Detail
-                    </button>
+              {recentJobs.length > 0 ? (
+                recentJobs.slice(0, 5).map((job, idx) => (
+                  <tr key={job.id || idx} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
+                    <td className="py-3.5 px-4">
+                      <div className="font-bold text-slate-900 dark:text-white">{job.title}</div>
+                      <span className="text-[10px] font-mono text-slate-400">ID: {job.id.substring(0, 8)}</span>
+                    </td>
+                    <td className="py-3.5 px-3 text-slate-600 dark:text-slate-300">
+                      {job.category || 'Information Technology'}
+                    </td>
+                    <td className="py-3.5 px-3 text-slate-500">
+                      {job.created_at ? new Date(job.created_at).toLocaleDateString('id-ID') : 'Hari ini'}
+                    </td>
+                    <td className="py-3.5 px-3">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                        {job.status === 'DRAFT' ? 'Pending Approval' : 'Aktif Tayang'}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-4 text-right">
+                      <button
+                        type="button"
+                        onClick={onNavigateToJobs}
+                        className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold cursor-pointer"
+                      >
+                        Detail
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={5} className="py-8 text-center text-slate-400">
+                    Belum ada lowongan yang dipublikasikan. Klik "+ Pasang Lowongan Baru" di atas untuk mulai membuka lowongan.
                   </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>

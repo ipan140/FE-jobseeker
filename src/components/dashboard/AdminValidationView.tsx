@@ -143,19 +143,21 @@ const SAMPLE_REQUESTS: VerificationRequest[] = [
 ];
 
 export default function AdminValidationView() {
-  const [requests, setRequests] = useState<VerificationRequest[]>(SAMPLE_REQUESTS);
-  const [selectedReq, setSelectedReq] = useState<VerificationRequest>(SAMPLE_REQUESTS[0]);
+  const [requests, setRequests] = useState<VerificationRequest[]>([]);
+  const [selectedReq, setSelectedReq] = useState<VerificationRequest | null>(null);
   const [filterTab, setFilterTab] = useState<'pending' | 'approved' | 'rejected' | 'revision'>('pending');
   const [filterAccountType, setFilterAccountType] = useState<string>('all');
   const [notes, setNotes] = useState<string>('');
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   const fetchPending = async () => {
+    setIsLoading(true);
     try {
       const liveList = await getPendingCompanies();
       if (liveList && liveList.length > 0) {
-        const mapped: VerificationRequest[] = liveList.map((c, i) => ({
+        const mapped: VerificationRequest[] = liveList.map((c) => ({
           id: c.id,
           reqCode: `REQ-${new Date(c.created_at).getFullYear()}-${c.id.substring(0, 4).toUpperCase()}`,
           companyName: c.company_name,
@@ -175,11 +177,17 @@ export default function AdminValidationView() {
           ktpNik: '3171023456780001',
         }));
 
-        setRequests([...mapped, ...SAMPLE_REQUESTS]);
+        setRequests(mapped);
         setSelectedReq(mapped[0]);
+      } else {
+        setRequests([]);
+        setSelectedReq(null);
       }
     } catch {
-      // Keep sample
+      setRequests([]);
+      setSelectedReq(null);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -405,14 +413,12 @@ export default function AdminValidationView() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {requests
-                    .filter((item) => {
-                      if (filterTab !== 'pending') return item.status === filterTab;
-                      return item.status === 'pending';
-                    })
-                    .map((item) => {
-                    const isSelected = selectedReq.id === item.id;
-                    return (
+                  {requests.filter((item) => filterTab === 'all' || item.status === filterTab).length > 0 ? (
+                    requests
+                      .filter((item) => filterTab === 'all' || item.status === filterTab)
+                      .map((item) => {
+                        const isSelected = selectedReq?.id === item.id;
+                        return (
                       <tr
                         key={item.id}
                         onClick={() => setSelectedReq(item)}
@@ -480,8 +486,17 @@ export default function AdminValidationView() {
                         </td>
                       </tr>
                     );
-                  })}
-                </tbody>
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan={5} className="py-12 text-center text-slate-400">
+                      <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
+                      <span className="font-bold text-slate-700 dark:text-slate-300 block">Tidak Ada Pengajuan Menunggu</span>
+                      <span className="text-xs">Semua mitra perusahaan telah terverifikasi secara resmi.</span>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
               </table>
             </div>
           </div>
@@ -516,7 +531,8 @@ export default function AdminValidationView() {
         </div>
 
         {/* Right Column: Verifikasi Dokumen Preview Panel */}
-        <div className="lg:col-span-5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm p-5 space-y-5">
+        {selectedReq ? (
+          <div className="lg:col-span-5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm p-5 space-y-5">
           {/* Top Header Badge */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -690,6 +706,15 @@ export default function AdminValidationView() {
             <span>Aksi ini dicatat dalam Audit Trail Admin Kemenaker & CareerFlow</span>
           </div>
         </div>
+        ) : (
+          <div className="lg:col-span-5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm p-12 text-center space-y-3 flex flex-col items-center justify-center">
+            <Building2 className="w-12 h-12 text-slate-300 dark:text-slate-700 mx-auto" />
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white">Tidak Ada Pengajuan Terpilih</h3>
+            <p className="text-xs text-slate-400 max-w-xs mx-auto">
+              Semua perusahaan yang mendaftar saat ini telah diverifikasi, atau pilih pengajuan dari tabel untuk meninjau berkas.
+            </p>
+          </div>
+        )}
 
       </div>
     </div>

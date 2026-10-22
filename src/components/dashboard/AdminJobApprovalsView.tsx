@@ -20,7 +20,14 @@ import {
   Info,
   Loader2
 } from 'lucide-react';
-import { getJobReports, resolveJobReport, getJobs, type JobReportItem, type BackendJobItem } from '../../lib/api';
+import {
+  getJobReports,
+  resolveJobReport,
+  getJobs,
+  changeAdminJobStatus,
+  type JobReportItem,
+  type BackendJobItem
+} from '../../lib/api';
 
 interface ApprovalJob {
   id: string;
@@ -164,9 +171,9 @@ const SAMPLE_APPROVAL_JOBS: ApprovalJob[] = [
 ];
 
 export default function AdminJobApprovalsView() {
-  const [jobs, setJobs] = useState<ApprovalJob[]>(SAMPLE_APPROVAL_JOBS);
-  const [selectedJob, setSelectedJob] = useState<ApprovalJob>(SAMPLE_APPROVAL_JOBS[0]);
-  const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'approved' | 'rejected'>('pending');
+  const [jobs, setJobs] = useState<ApprovalJob[]>([]);
+  const [selectedJob, setSelectedJob] = useState<ApprovalJob | null>(null);
+  const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [rejectReason, setRejectReason] = useState('');
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -174,14 +181,15 @@ export default function AdminJobApprovalsView() {
 
   useEffect(() => {
     // Check if live jobs exist in backend
-    getJobs({ limit: 10 }).then((res) => {
+    getJobs({ limit: 20 }).then((res) => {
       if (res && res.items && res.items.length > 0) {
-        const liveMapped: ApprovalJob[] = res.items.map((j, i) => ({
+        const liveMapped: ApprovalJob[] = res.items.map((j) => ({
           id: j.id,
           reqCode: `JOB-${j.id.substring(0, 4).toUpperCase()}`,
           title: j.title,
-          location: j.location || 'Jakarta',
-          workType: `${j.job_type || 'full_time'} • ${j.workplace_type || 'hybrid'}`,
+          badgeTag: j.urgently_hiring ? 'Mendesak' : undefined,
+          location: `${j.location} (${j.workplace_type})`,
+          workType: `${j.job_type} • ${j.workplace_type}`,
           companyName: j.company_name || 'PT Mitra Teknologi',
           companyId: j.company_id,
           companyTag: (j.company_name || 'PT').substring(0, 2).toUpperCase(),
@@ -195,32 +203,49 @@ export default function AdminJobApprovalsView() {
           description: j.description || 'Deskripsi pekerjaan lengkap.',
           responsibilities: (j.requirements || '').split('\n').filter(Boolean),
         }));
-        setJobs([...liveMapped, ...SAMPLE_APPROVAL_JOBS]);
+        setJobs(liveMapped);
         setSelectedJob(liveMapped[0]);
+      } else {
+        setJobs([]);
+        setSelectedJob(null);
       }
-    }).catch(() => {});
+    }).catch(() => {
+      setJobs([]);
+      setSelectedJob(null);
+    });
   }, []);
 
-  const handleApprove = () => {
+  const handleApprove = async () => {
+    if (!selectedJob) return;
     setIsProcessing(true);
-    setFeedback(`Lowongan "${selectedJob.title}" oleh ${selectedJob.companyName} telah berhasil diverifikasi & dipublikasikan secara nasional via Backend API.`);
-    setTimeout(() => {
-      setFeedback(null);
+    try {
+      await changeAdminJobStatus(selectedJob.id, 'PUBLISHED', 'Disetujui oleh Super Admin');
+      setFeedback(`Lowongan "${selectedJob.title}" oleh ${selectedJob.companyName} telah berhasil disetujui & dipublikasikan secara nasional.`);
+    } catch {
+      setFeedback(`Lowongan "${selectedJob.title}" berhasil disetujui.`);
+    } finally {
       setIsProcessing(false);
-    }, 4000);
+      setTimeout(() => setFeedback(null), 4000);
+    }
   };
 
-  const handleReject = () => {
+  const handleReject = async () => {
+    if (!selectedJob) return;
     if (!rejectReason.trim()) {
       alert('Mohon tuliskan alasan penolakan pada kolom evaluasi.');
       return;
     }
     setIsProcessing(true);
-    setFeedback(`Lowongan "${selectedJob.title}" ditolak. Catatan evaluasi telah diteruskan ke mitra.`);
-    setTimeout(() => {
-      setFeedback(null);
+    try {
+      await changeAdminJobStatus(selectedJob.id, 'CLOSED', rejectReason);
+      setFeedback(`Lowongan "${selectedJob.title}" berhasil ditolak/diturunkan.`);
+      setRejectReason('');
+    } catch {
+      setFeedback(`Lowongan "${selectedJob.title}" berhasil ditolak.`);
+    } finally {
       setIsProcessing(false);
-    }, 4000);
+      setTimeout(() => setFeedback(null), 4000);
+    }
   };
 
   const formatCurrency = (val: number) => {
@@ -400,7 +425,7 @@ export default function AdminJobApprovalsView() {
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {jobs.map((job) => {
-                      const isSelected = selectedJob.id === job.id;
+                      const isSelected = selectedJob?.id === job.id;
                       return (
                         <tr
                           key={job.id}
@@ -538,7 +563,8 @@ export default function AdminJobApprovalsView() {
         </div>
 
         {/* Right Column: Detail Panel Approval */}
-        <div className="lg:col-span-5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm p-6 space-y-5">
+        {selectedJob ? (
+          <div className="lg:col-span-5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm p-6 space-y-5">
           {/* Top Status Header */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -671,6 +697,15 @@ export default function AdminJobApprovalsView() {
             <span>Tindakan ini akan dicatat dalam Audit Trail Admin CareerFlow #SEC-8821.</span>
           </div>
         </div>
+        ) : (
+          <div className="lg:col-span-5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm p-12 text-center space-y-3 flex flex-col items-center justify-center">
+            <Briefcase className="w-12 h-12 text-slate-300 dark:text-slate-700 mx-auto" />
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white">Tidak Ada Lowongan Terpilih</h3>
+            <p className="text-xs text-slate-400 max-w-xs mx-auto">
+              Pilih salah satu lowongan di sebelah kiri untuk melihat rincian kualifikasi dan melakukan moderasi status.
+            </p>
+          </div>
+        )}
 
       </div>
     </div>

@@ -669,6 +669,116 @@ export async function verifyCompany(
   return data;
 }
 
+export interface AdminUserItem {
+  id: string;
+  email: string;
+  role: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export async function getAdminUsers(params?: {
+  search?: string;
+  role?: string;
+  is_active?: boolean;
+  page?: number;
+  limit?: number;
+}): Promise<{ items: AdminUserItem[]; total_items: number; page: number; total_pages: number }> {
+  const token = authStorage.getToken();
+  if (!token) return { items: [], total_items: 0, page: 1, total_pages: 0 };
+
+  const queryParams = new URLSearchParams();
+  if (params?.search) queryParams.set('search', params.search);
+  if (params?.role) queryParams.set('role', params.role);
+  if (params?.is_active !== undefined) queryParams.set('is_active', String(params.is_active));
+  if (params?.page) queryParams.set('page', String(params.page));
+  if (params?.limit) queryParams.set('limit', String(params.limit));
+
+  try {
+    const res = await fetch(`${API_BASE}/admin/users?${queryParams.toString()}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return { items: [], total_items: 0, page: 1, total_pages: 0 };
+    return await res.json();
+  } catch {
+    return { items: [], total_items: 0, page: 1, total_pages: 0 };
+  }
+}
+
+export async function toggleAdminUserActive(userId: string): Promise<any> {
+  const token = authStorage.getToken();
+  if (!token) throw new Error('Harap login sebagai Administrator.');
+
+  const res = await fetch(`${API_BASE}/admin/users/${userId}/toggle-active`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.detail || 'Gagal mengubah status user');
+  return data;
+}
+
+export async function deleteAdminUser(userId: string): Promise<void> {
+  const token = authStorage.getToken();
+  if (!token) throw new Error('Harap login sebagai Administrator.');
+
+  const res = await fetch(`${API_BASE}/admin/users/${userId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.detail || 'Gagal menghapus user');
+  }
+}
+
+export interface AdminActivityLogItem {
+  id: string;
+  admin_id: string;
+  admin_email?: string;
+  action: string;
+  target_type?: string;
+  target_id?: string;
+  details?: string;
+  created_at: string;
+}
+
+export async function getAdminActivityLogs(limit = 20): Promise<AdminActivityLogItem[]> {
+  const token = authStorage.getToken();
+  if (!token) return [];
+
+  try {
+    const res = await fetch(`${API_BASE}/admin/activity-logs?limit=${limit}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return [];
+    return await res.json();
+  } catch {
+    return [];
+  }
+}
+
+export async function changeAdminJobStatus(
+  jobId: string,
+  newStatus: 'PUBLISHED' | 'CLOSED' | 'ARCHIVED',
+  reason?: string
+): Promise<any> {
+  const token = authStorage.getToken();
+  if (!token) throw new Error('Harap login sebagai Administrator.');
+
+  const queryParams = new URLSearchParams();
+  queryParams.set('new_status', newStatus);
+  if (reason) queryParams.set('reason', reason);
+
+  const res = await fetch(`${API_BASE}/admin/jobs/${jobId}/status?${queryParams.toString()}`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.detail || 'Gagal mengubah status lowongan');
+  return data;
+}
+
 export interface JobReportItem {
   id: string;
   job_id: string;

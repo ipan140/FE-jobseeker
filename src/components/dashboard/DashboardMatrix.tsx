@@ -31,8 +31,14 @@ import {
   getSystemStats,
   createJob,
   generateAiJobDescription,
+  getAdminUsers,
+  toggleAdminUserActive,
+  deleteAdminUser,
+  getAdminActivityLogs,
   type BackendJobItem,
-  type CreateJobPayload
+  type CreateJobPayload,
+  type AdminUserItem,
+  type AdminActivityLogItem
 } from '../../lib/api';
 import { authStorage } from '../../lib/auth';
 
@@ -56,142 +62,6 @@ interface UserItem {
   initials: string;
 }
 
-const INITIAL_USERS: UserItem[] = [
-  {
-    id: '1',
-    code: 'USR-10294',
-    name: 'Rian Pratama',
-    email: 'rian.pratama@techasia.com',
-    phone: '+62 812-3456-7890',
-    role: 'Merchant',
-    status: true,
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100',
-    initials: 'RP',
-  },
-  {
-    id: '2',
-    code: 'USR-9082',
-    name: 'Budi Santoso',
-    email: 'budi.santoso@nusantara.id',
-    phone: '+62 812-9876-5432',
-    role: 'Job Seeker',
-    status: true,
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100',
-    initials: 'BS',
-  },
-  {
-    id: '3',
-    code: 'USR-8812',
-    name: 'Siti Nurhaliza',
-    email: 'siti.nurhaliza@go-talent.com',
-    phone: '+62 813-4567-8901',
-    role: 'Job Seeker',
-    status: true,
-    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100',
-    initials: 'SN',
-  },
-  {
-    id: '4',
-    code: 'USR-7451',
-    name: 'Dewi Lestari',
-    email: 'dewi.lestari@workpoint.id',
-    phone: '+62 821-2345-6789',
-    role: 'Merchant',
-    status: true,
-    avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=100',
-    initials: 'DL',
-  },
-  {
-    id: '5',
-    code: 'USR-6102',
-    name: 'Ahmad Fauzi',
-    email: 'ahmad.fauzi@megacorps.co.id',
-    phone: '+62 811-9876-1234',
-    role: 'Super Admin',
-    status: true,
-    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100',
-    initials: 'AF',
-  },
-];
-
-const AUDIT_ACTIVITIES = [
-  {
-    id: 1,
-    time: '10:42 WIB',
-    timeSub: 'Hari ini',
-    company: 'PT GoTo Gojek Tokopedia',
-    entityRole: 'Corporate Partner',
-    avatarTag: 'GT',
-    avatarColor: 'bg-emerald-500 text-white',
-    activityType: 'Post Lowongan Baru',
-    detailTitle: 'Senior DevOps Engineer',
-    detailSub: 'Departemen Infrastructure & Platform • Jakarta',
-    statusLabel: 'Menunggu Approval',
-    statusClass: 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800',
-    statusDot: 'bg-amber-500',
-  },
-  {
-    id: 2,
-    time: '09:15 WIB',
-    timeSub: 'Hari ini',
-    company: 'Budi Santoso',
-    entityRole: 'Job Seeker',
-    avatarTag: 'BS',
-    avatarColor: 'bg-blue-500 text-white',
-    activityType: 'Registrasi Akun Baru',
-    detailTitle: 'Verifikasi Email & OTP Mandiri Berhasil',
-    detailSub: 'Domain: budi.santoso@gmail.com',
-    statusLabel: 'Aktif',
-    statusClass: 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800',
-    statusDot: 'bg-emerald-500',
-  },
-  {
-    id: 3,
-    time: '08:30 WIB',
-    timeSub: 'Hari ini',
-    company: 'PT Bank Mandiri (Persero) Tbk',
-    entityRole: 'Corporate Partner',
-    avatarTag: 'BM',
-    avatarColor: 'bg-sky-600 text-white',
-    activityType: 'Upload Berkas Legalitas',
-    detailTitle: 'NIB & Dokumen Kemenkumham',
-    detailSub: 'Pembaruan Izin rekrutmen massal BUMN batch 2025',
-    statusLabel: 'Perlu Validasi',
-    statusClass: 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800',
-    statusDot: 'bg-amber-500',
-  },
-  {
-    id: 4,
-    time: 'Kemarin',
-    timeSub: '16:20 WIB',
-    company: 'PT Astra International Tbk',
-    entityRole: 'Corporate Partner',
-    avatarTag: 'AI',
-    avatarColor: 'bg-indigo-600 text-white',
-    activityType: 'Pembaruan Lowongan',
-    detailTitle: 'Management Trainee Batch 2025',
-    detailSub: 'Perpanjangan masa pendaftaran hingga 30 Juli 2025',
-    statusLabel: 'Dipublikasikan',
-    statusClass: 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800',
-    statusDot: 'bg-emerald-500',
-  },
-  {
-    id: 5,
-    time: 'Kemarin',
-    timeSub: '14:05 WIB',
-    company: 'PT Bukalapak.com Tbk',
-    entityRole: 'Corporate Partner',
-    avatarTag: 'BL',
-    avatarColor: 'bg-pink-600 text-white',
-    activityType: 'Penutupan Formasi',
-    detailTitle: 'Lead Product Manager (Fintech)',
-    detailSub: 'Kuota kandidat terpenuhi (142 pelamar terproses)',
-    statusLabel: 'Ditutup',
-    statusClass: 'bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800',
-    statusDot: 'bg-red-500',
-  },
-];
-
 export default function DashboardMatrix({
   activeTab,
   onSelectTab,
@@ -201,17 +71,18 @@ export default function DashboardMatrix({
 }: DashboardMatrixProps) {
   // Live Data States
   const [backendJobs, setBackendJobs] = useState<BackendJobItem[]>([]);
-  const [totalJobs, setTotalJobs] = useState<number>(3845);
-  const [totalUsers, setTotalUsers] = useState<number>(24850);
-  const [totalCompanies, setTotalCompanies] = useState<number>(1420);
-  const [pendingApproval, setPendingApproval] = useState<number>(38);
+  const [totalJobs, setTotalJobs] = useState<number>(11);
+  const [totalUsers, setTotalUsers] = useState<number>(6);
+  const [totalCompanies, setTotalCompanies] = useState<number>(3);
+  const [pendingApproval, setPendingApproval] = useState<number>(0);
+  const [activityLogs, setActivityLogs] = useState<AdminActivityLogItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
   // User Management State
-  const [users, setUsers] = useState<UserItem[]>(INITIAL_USERS);
+  const [users, setUsers] = useState<UserItem[]>([]);
   const [userSearch, setUserSearch] = useState('');
   const [editingUser, setEditingUser] = useState<UserItem | null>(null);
-  const [selectedUserIds, setSelectedUserIds] = useState<string[]>(['1']);
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [userToDelete, setUserToDelete] = useState<UserItem | null>(null);
 
   // Form for New Job Modal
@@ -257,20 +128,70 @@ export default function DashboardMatrix({
   };
 
   useEffect(() => {
-    // Fetch live backend metrics & jobs
-    getJobs({ limit: 10 }).then((res) => {
-      if (res && res.items) {
-        setBackendJobs(res.items);
-      }
-    }).catch(() => {});
+    // 1. Fetch live backend metrics
+    getSystemStats()
+      .then((stats) => {
+        if (stats) {
+          if (stats.total_jobs !== undefined) setTotalJobs(stats.total_jobs);
+          if (stats.total_users !== undefined) setTotalUsers(stats.total_users);
+          if (stats.total_companies !== undefined) setTotalCompanies(stats.total_companies);
+          if (stats.pending_company_verifications !== undefined) setPendingApproval(stats.pending_company_verifications);
+        }
+      })
+      .catch(() => {});
 
-    getSystemStats().then((stats) => {
-      if (stats) {
-        if (stats.total_jobs) setTotalJobs(stats.total_jobs);
-        if (stats.total_users) setTotalUsers(stats.total_users);
-        if (stats.total_companies) setTotalCompanies(stats.total_companies);
-      }
-    }).catch(() => {});
+    // 2. Fetch live backend jobs
+    getJobs({ limit: 10 })
+      .then((res) => {
+        if (res && res.items) {
+          setBackendJobs(res.items);
+        }
+      })
+      .catch(() => {});
+
+    // 3. Fetch live admin users from backend PostgreSQL
+    getAdminUsers({ limit: 50 })
+      .then((res) => {
+        if (res && res.items && res.items.length > 0) {
+          const mappedUsers: UserItem[] = res.items.map((u: AdminUserItem) => {
+            const roleLower = (u.role || '').toLowerCase();
+            const roleLabel =
+              roleLower === 'admin'
+                ? 'Super Admin'
+                : roleLower === 'company' || roleLower === 'employer'
+                ? 'Merchant'
+                : 'Job Seeker';
+            const displayName = u.full_name || u.email.split('@')[0];
+            return {
+              id: u.id,
+              code: `USR-${u.id.substring(0, 6).toUpperCase()}`,
+              name: displayName,
+              email: u.email,
+              phone: u.phone_number || '-',
+              role: roleLabel,
+              status: u.is_active,
+              avatar:
+                u.avatar_url ||
+                `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=2563eb&color=fff`,
+              initials: displayName.substring(0, 2).toUpperCase(),
+            };
+          });
+          setUsers(mappedUsers);
+          if (mappedUsers.length > 0) {
+            setSelectedUserIds([mappedUsers[0].id]);
+          }
+        }
+      })
+      .catch(() => {});
+
+    // 4. Fetch live admin audit activity logs
+    getAdminActivityLogs(10)
+      .then((res) => {
+        if (res && res.items) {
+          setActivityLogs(res.items);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const handleCreateJobSubmit = async (e: React.FormEvent) => {
@@ -288,21 +209,37 @@ export default function DashboardMatrix({
     }
   };
 
-  const handleSaveUserEdit = (e: React.FormEvent) => {
+  const handleSaveUserEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingUser) return;
-    setUsers((prev) =>
-      prev.map((u) => (u.id === editingUser.id ? editingUser : u))
-    );
-    setEditingUser(null);
-    alert('Data pengguna berhasil diperbarui!');
+    try {
+      await toggleAdminUserActive(editingUser.id);
+      setUsers((prev) =>
+        prev.map((u) => (u.id === editingUser.id ? editingUser : u))
+      );
+      alert('Status pengguna berhasil disinkronkan dengan database!');
+    } catch (err: any) {
+      // Fallback local update
+      setUsers((prev) =>
+        prev.map((u) => (u.id === editingUser.id ? editingUser : u))
+      );
+      alert('Perubahan disimpan di sesi lokal.');
+    } finally {
+      setEditingUser(null);
+    }
   };
 
-  const handleDeleteUser = () => {
+  const handleDeleteUser = async () => {
     if (!userToDelete) return;
-    setUsers((prev) => prev.filter((u) => u.id !== userToDelete.id));
-    setUserToDelete(null);
-    alert('User berhasil dihapus dari sistem!');
+    try {
+      await deleteAdminUser(userToDelete.id);
+      setUsers((prev) => prev.filter((u) => u.id !== userToDelete.id));
+      alert('User berhasil dihapus dari backend PostgreSQL!');
+    } catch (err: any) {
+      alert(err.message || 'Gagal menghapus user dari database.');
+    } finally {
+      setUserToDelete(null);
+    }
   };
 
   return (
@@ -697,64 +634,81 @@ export default function DashboardMatrix({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
-                  {AUDIT_ACTIVITIES.map((act) => (
-                    <tr
-                      key={act.id}
-                      className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
-                    >
-                      <td className="py-3.5 px-6">
-                        <span className="font-bold text-slate-800 dark:text-slate-200 block">
-                          {act.time}
-                        </span>
-                        <span className="text-[11px] text-slate-400 block">{act.timeSub}</span>
-                      </td>
-
-                      <td className="py-3.5 px-6">
-                        <div className="flex items-center gap-3">
-                          <div
-                            className={`w-8 h-8 rounded-full font-bold text-xs flex items-center justify-center shrink-0 ${act.avatarColor}`}
-                          >
-                            {act.avatarTag}
-                          </div>
-                          <div>
-                            <span className="font-bold text-slate-900 dark:text-white block">
-                              {act.company}
-                            </span>
-                            <span className="text-[11px] text-slate-400 block">
-                              {act.entityRole}
-                            </span>
-                          </div>
-                        </div>
-                      </td>
-
-                      <td className="py-3.5 px-6 font-medium text-slate-700 dark:text-slate-300">
-                        {act.activityType}
-                      </td>
-
-                      <td className="py-3.5 px-6">
-                        <span className="font-bold text-slate-800 dark:text-slate-200 block">
-                          {act.detailTitle}
-                        </span>
-                        <span className="text-[11px] text-slate-400 block">{act.detailSub}</span>
-                      </td>
-
-                      <td className="py-3.5 px-6 text-center">
-                        <span
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${act.statusClass}`}
-                        >
-                          <span className={`w-1.5 h-1.5 rounded-full ${act.statusDot}`} />
-                          {act.statusLabel}
-                        </span>
+                  {activityLogs.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-8 text-center text-slate-400">
+                        Belum ada riwayat aktivitas admin di sistem.
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    activityLogs.map((act) => {
+                      const dateObj = new Date(act.created_at);
+                      const timeStr = !isNaN(dateObj.getTime())
+                        ? `${dateObj.getHours().toString().padStart(2, '0')}:${dateObj.getMinutes().toString().padStart(2, '0')} WIB`
+                        : 'Hari ini';
+                      const dateStr = !isNaN(dateObj.getTime())
+                        ? dateObj.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })
+                        : '-';
+                      return (
+                        <tr
+                          key={act.id}
+                          className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
+                        >
+                          <td className="py-3.5 px-6">
+                            <span className="font-bold text-slate-800 dark:text-slate-200 block">
+                              {timeStr}
+                            </span>
+                            <span className="text-[11px] text-slate-400 block">{dateStr}</span>
+                          </td>
+
+                          <td className="py-3.5 px-6">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-full font-bold text-xs flex items-center justify-center shrink-0 bg-blue-600 text-white">
+                                {act.admin_name ? act.admin_name.slice(0, 2).toUpperCase() : 'AD'}
+                              </div>
+                              <div>
+                                <span className="font-bold text-slate-900 dark:text-white block">
+                                  {act.admin_name || 'Administrator'}
+                                </span>
+                                <span className="text-[11px] text-slate-400 block">
+                                  Super Admin
+                                </span>
+                              </div>
+                            </div>
+                          </td>
+
+                          <td className="py-3.5 px-6 font-medium text-slate-700 dark:text-slate-300">
+                            <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                              {act.action}
+                            </span>
+                          </td>
+
+                          <td className="py-3.5 px-6">
+                            <span className="font-bold text-slate-800 dark:text-slate-200 block">
+                              {act.target_type} ({act.target_id ? act.target_id.slice(0, 8) : '-'}...)
+                            </span>
+                            <span className="text-[11px] text-slate-400 block">
+                              {act.details ? JSON.stringify(act.details) : 'Audit sistem PostgreSQL'}
+                            </span>
+                          </td>
+
+                          <td className="py-3.5 px-6 text-center">
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                              Terekam
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
             </div>
 
             {/* Bottom Pagination Bar */}
             <div className="px-6 py-3.5 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500 dark:text-slate-400 bg-slate-50/40 dark:bg-[#111827]/60">
-              <span className="text-[11px]">Menampilkan 5 dari 1.840 aktivitas terbaru</span>
+              <span className="text-[11px]">Menampilkan {activityLogs.length} aktivitas audit terbaru</span>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
@@ -873,47 +827,60 @@ export default function DashboardMatrix({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
-                  {users
-                    .filter((u) => u.name.toLowerCase().includes(userSearch.toLowerCase()) || u.email.toLowerCase().includes(userSearch.toLowerCase()))
-                    .map((user) => (
-                      <tr key={user.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40">
-                        <td className="py-3 px-4 text-center">
-                          <input
-                            type="checkbox"
-                            checked={selectedUserIds.includes(user.id)}
-                            onChange={(e) => {
-                              if (e.target.checked) setSelectedUserIds([...selectedUserIds, user.id]);
-                              else setSelectedUserIds(selectedUserIds.filter((id) => id !== user.id));
-                            }}
-                            className="rounded text-blue-600"
-                          />
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="flex items-center gap-3">
-                            <img
-                              src={user.avatar}
-                              alt={user.name}
-                              className="w-8 h-8 rounded-full object-cover ring-1 ring-slate-200"
+                  {users.filter((u) => u.name.toLowerCase().includes(userSearch.toLowerCase()) || u.email.toLowerCase().includes(userSearch.toLowerCase())).length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-8 text-center text-slate-400 text-xs">
+                        {users.length === 0 ? 'Sedang memuat data pengguna dari backend...' : 'Tidak ada pengguna yang cocok dengan pencarian.'}
+                      </td>
+                    </tr>
+                  ) : (
+                    users
+                      .filter((u) => u.name.toLowerCase().includes(userSearch.toLowerCase()) || u.email.toLowerCase().includes(userSearch.toLowerCase()))
+                      .map((user) => (
+                        <tr key={user.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40">
+                          <td className="py-3 px-4 text-center">
+                            <input
+                              type="checkbox"
+                              checked={selectedUserIds.includes(user.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) setSelectedUserIds([...selectedUserIds, user.id]);
+                                else setSelectedUserIds(selectedUserIds.filter((id) => id !== user.id));
+                              }}
+                              className="rounded text-blue-600"
                             />
-                            <div>
-                              <span className="font-bold text-slate-900 dark:text-white block">{user.name}</span>
-                              <span className="text-[10px] text-slate-400 font-mono block">ID: {user.code}</span>
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-3">
+                              <img
+                                src={user.avatar}
+                                alt={user.name}
+                                className="w-8 h-8 rounded-full object-cover ring-1 ring-slate-200"
+                              />
+                              <div>
+                                <span className="font-bold text-slate-900 dark:text-white block">{user.name}</span>
+                                <span className="text-[10px] text-slate-400 font-mono block">ID: {user.code}</span>
+                              </div>
                             </div>
-                          </div>
-                        </td>
-                        <td className="py-3 px-4 text-slate-600 dark:text-slate-300 font-mono text-[11px]">{user.email}</td>
-                        <td className="py-3 px-4 text-slate-600 dark:text-slate-300">{user.phone}</td>
-                        <td className="py-3 px-4">
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400">
-                            {user.role}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-center">
-                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Aktif
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-center">
+                          </td>
+                          <td className="py-3 px-4 text-slate-600 dark:text-slate-300 font-mono text-[11px]">{user.email}</td>
+                          <td className="py-3 px-4 text-slate-600 dark:text-slate-300">{user.phone}</td>
+                          <td className="py-3 px-4">
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400">
+                              {user.role}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            {user.status ? (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Aktif
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-400">
+                                <span className="w-1.5 h-1.5 rounded-full bg-slate-400" /> Non-Aktif
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-center">
                           <div className="flex items-center justify-center gap-1.5">
                             <button
                               type="button"
@@ -934,7 +901,8 @@ export default function DashboardMatrix({
                           </div>
                         </td>
                       </tr>
-                    ))}
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
